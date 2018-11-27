@@ -12,7 +12,8 @@ endmodule // data_dump
 module hist2d(
     input clk100,
     input [31:0] i_val, q_val,
-    input [3:0] x_bin, y_bin  
+    input [3:0] x_bin, y_bin,
+    input [] x_min, y_min, x_max, y_max  
     );
     
 

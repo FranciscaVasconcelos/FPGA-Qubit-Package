@@ -20,8 +20,13 @@ module config_params(
     output reg [5:0] sample_freq, // min 8 MHz
     output reg [13:0] delay_time, // max 163 us
     output reg [1:0] analyze_mode, // data dump, binning, classifier
-    output reg [3:0] x_bin,
-    output reg [3:0] y_bin);
+    output reg [15:0] x_bin_width, // width of bin in x_direction
+    output reg [15:0] y_bin_width, // width of bin in y_direction
+    output reg [4:0] x_bin_num, // number of bins along x_direction
+    output reg [4:0] y_bin_num, // number of bins along y_direction
+    output reg signed [15:0] x_bin_min, // start of bins x_direction
+    output reg signed [15:0] y_bin_min // start of bins y_direction
+    );
 
     always @(posedge clk_100) begin
         if (reset) begin
