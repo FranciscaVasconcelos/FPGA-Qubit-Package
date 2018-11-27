@@ -173,6 +173,13 @@ module sampler(
 endmodule // sampler
 
 
+dds_compiler_0 sin_cos(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    .s_axis_phase_tdata : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    m_axis_data_tvalid : OUT STD_LOGIC;
+    m_axis_data_tdata : OUT STD_LOGIC_VECTOR(31 DOWNTO 0);
+    event_phase_in_invalid : OUT STD_LOGIC
+  );
+
 module multiplier(
     input clk100,
     input reset,
