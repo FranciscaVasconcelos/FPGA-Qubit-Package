@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Top Modules Instantiation version v1
 // Author: Megan Yamoah
-// Date: 19/11/2018
+// Date: 28/11/2018
 ////////////////////////////////////////////////////////////////////////////////
 
 module top_main #(
@@ -17,7 +17,15 @@ module top_main #(
 	input [15:0] data1_in_0, data1_in_1, data1_in_2, data1_in_3, data1_in_4,
 	output iq_valid,
 	output [31:0] i_val,
-	output [31:0] q_val
+	output [31:0] q_val,
+	// configurated prameters to pass to lower modules
+	output [1:0] analyze_mode,
+    output [15:0] x_bin_width,
+    output [15:0] y_bin_width,
+    output [4:0] x_bin_num,
+    output [4:0] y_bin_num,
+    output signed [15:0] x_bin_min,
+    output signed [15:0] y_bin_min
 	);
 
 	// configuration parameters
@@ -34,11 +42,8 @@ module top_main #(
     wire [3:0] demod_freq;
     wire [10:0] sample_length;
     wire [5:0] sample_freq;
-    wire [12:0] sample_num;
     wire [13:0] delay_time;
     wire [1:0] analyze_mode;
-    wire [3:0] x_bin;
-    wire [3:0] y_bin;
 
 	config_params config_main(.clk100(clk100), .reset(reset), .config_reset(config_reset),
 		.demod_freq_new(demod_frew_new), .sample_length_new(sample_length_new), .sample_freq_new(sample_freq_new),
@@ -48,7 +53,9 @@ module top_main #(
 		.demod_freq(demod_freq), .sample_length(sample_length), .sample_freq(sample_freq),
 		.delay_time(delay_time),
 		.analyze_mode(analyze_mode),
-		.x_bin(x_bin), .y_bin(y_bin));
+		.x_bin_width(x_bin_width), .y_bin_width(y_bin_width),
+		.x_bin_num(x_bin_num), .y_bin_num(y_bin_num),
+		.x_bin_min(x_bin_min), .y_bin_min(y_bin_min));
 
 	// start data collection
 	// output from timing module

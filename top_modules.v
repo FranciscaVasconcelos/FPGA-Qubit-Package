@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Top Modules version v1
 // Author: Megan Yamoah
-// Date: 19/11/2018
+// Date: 28/11/2018
 ////////////////////////////////////////////////////////////////////////////////
 
 module config_params(
@@ -9,6 +9,7 @@ module config_params(
     input clk100,
     input reset,
     input config_reset,
+    // update values
     input [3:0] demod_freq_new, // freq divided by 10 MHz
     input [10:0] sample_length_new, // max 20 us
     input [5:0] sample_freq_new, // min 8 MHz
@@ -21,12 +22,6 @@ module config_params(
     input signed [15:0] x_bin_min_new, // start of bins x_direction 
     input signed [15:0] y_bin_min_new, // start of bins y_direction
     // outputs
-    output reg [15:0] x_bin_width, // width of bin in x_direction 
-    output reg [15:0] y_bin_width, // width of bin in y_direction 
-    output reg [4:0] x_bin_num, // number of bins along x_direction 
-    output reg [4:0] y_bin_num, // number of bins along y_direction 
-    output reg signed [15:0] x_bin_min, // start of bins x_direction 
-    output reg signed [15:0] y_bin_min, // start of bins y_direction 
     output reg [3:0] demod_freq, // freq divided by 10 MHz
     output reg [10:0] sample_length, // max 20 us
     output reg [5:0] sample_freq, // min 8 MHz
@@ -197,6 +192,7 @@ module sampler(
     end
 
 endmodule // sampler
+
 
 module multiplier(
     input clk100,
