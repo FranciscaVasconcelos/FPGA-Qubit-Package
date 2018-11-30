@@ -35,10 +35,10 @@ module config_params(
     output reg signed [15:0] y_bin_min // start of bins y_direction
     );
 
-    always @(posedge clk_100) begin
+    always @(posedge clk100) begin
         if (reset) begin
-            demod_freq_new <= 4'd5; // 50 MHz
-            sample_length <= 11'd20000; // 20 us
+            demod_freq <= 4'd5; // 50 MHz
+            sample_length <= 11'd2000; // 20 us
             sample_freq <= 6'd5; // 100 MHz
             delay_time <= 14'd5000;
             analyze_mode <= 2'd0;
@@ -67,8 +67,8 @@ module config_params(
 endmodule // config
 
 
-module timing(
-    input clk100
+module timing(  
+    input clk100,
     input reset,
     input trigger,
     input [13:0] delay,
@@ -90,7 +90,7 @@ module timing(
         case (state) 
             IDLE:
             begin
-                start_collect <= 0
+                start_collect <= 0;
                 if (trigger) begin
                     state <= DELAY;
                     counter <= counter + 1;
@@ -125,14 +125,14 @@ module sampler(
     input clk100,
     input reset,
     input start,
-    input [15:0] data_i_in [4:0],
-    input [15:0] data_q_in [4:0],
+    input signed [15:0] [4:0] data_i_in, // packed
+    input signed [15:0] [4:0] data_q_in, // packed
     input [3:0] demod_freq,
     input [10:0] sample_length,
     input [13:0] sample_freq,
-    output reg [15:0] data_i_out [4:0],
-    output reg [15:0] data_q_out [4:0],
-    output reg [13:0] phase_vals [4:0]);
+    output reg signed [15:0] [4:0] data_i_shift, // packed
+    output reg signed [15:0] [4:0] data_q_shift, // packed
+    output reg [13:0] [4:0] phase_vals); // packed
 
     parameter IDLE = 0;
     parameter SAMPLE = 1;
@@ -151,10 +151,10 @@ module sampler(
         end
 
         // make sure data values match phase_vals
-        data_i_out <= data_i_in;
-        data_q_out <= data_q_in;
+        data_i_shift <= data_i_in;
+        data_q_shift <= data_q_in;
 
-        case (state) begin
+        case (state)
             IDLE: begin
                 if (start) begin // from timing, assert on same clock sample as value to sample
                     state <= SAMPLE;
@@ -197,27 +197,30 @@ endmodule // sampler
 module multiplier(
     input clk100,
     input reset,
-    input [13:0] phase_vals [4:0],
-    input [15:0] data_i_in [4:0],
-    input [15:0] data_q_in [4:0],
-    output reg signed [15:0] data_i_rot [4:0],
-    output reg signed [15:0] data_q_rot [4:0]);
+    input [13:0] [4:0] phase_vals, // packed
+    input signed [15:0] [4:0] data_i_in,
+    input signed [15:0] [4:0] data_q_in,
+    output reg signed [15:0] [4:0] data_i_rot,
+    output reg signed [15:0] [4:0] data_q_rot);
 
-    wire signed [15:0] sin_theta [4:0];
-    wire signed [15:0] cos_theta [4:0];
-    wire [31:0] sin_cos [4:0];
+    wire signed [15:0] [4:0] sin_theta;
+    wire signed [15:0] [4:0] cos_theta;
+    wire signed [31:0] [4:0] sin_cos;
+    
+    wire [7:0] [4:0] phase_vals_mod;
 
-    wire [7:0] phase_vals_mod [4:0];
-
-    integer j;
+    genvar g;
 
     generate
-        for (j = 0; j < 5; j = j + 1) begin
-            assign sin_cos[i] = {sin_theta[i], cos_theta[i]};
+        for (g = 0; g < 5; g = g + 1) begin
+            assign sin_cos[g] = {sin_theta[g], cos_theta[g]};
+            assign phase_vals_mod[g] = phase_vals[g] % 50;
         end
-    endgenerate
+    endgenerate  
 
     wire phase_valid = 1;
+    wire error;
+    wire data_valid;
 
     // DDS COMPILERS
     // mode: sine/cosine LUT
@@ -245,25 +248,28 @@ module multiplier(
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[4]),
         .event_phase_in_invalid(error));
 
-    integer i;
-    integer k;
+    reg signed [15:0] [4:0] data_i_hold;
+    reg signed [15:0] [4:0] data_q_hold;
+
+    integer i, k;
 
     always @(posedge clk100) begin
         if (reset) begin
             data_i_rot <= {5{16'b0}};
             data_q_rot <= {5{16'b0}};
         end
-        else if begin
+        else begin
             for (i = 0; i < 5; i = i + 1) begin
-                if ~(phase_vals[i] == 0) begin
-                    data_i_rot[i] <= data_i_in[i]*cos_theta[i] + data_q_in[i]*sin_theta[i];
-                    data_q_rot[i] <= data_q_in[i]*cos_theta[i] - data_i_in[i]*sin_theta[i];
+                if (~(phase_vals[i] == 0)) begin
+                    data_i_rot[i] <= data_i_hold[i]*cos_theta[i] + data_q_hold[i]*sin_theta[i];
+                    data_q_rot[i] <= data_q_hold[i]*cos_theta[i] - data_i_hold[i]*sin_theta[i];
                 end
             end
         end
 
         for (k = 0; k < 5; k = k+1) begin
-            phase_vals_mod[i] <= phase_vals[i] % 50;
+            data_i_hold[k] <= data_i_in[k];
+            data_q_hold[k] <= data_q_in[k];
         end
     end
 
@@ -275,19 +281,20 @@ module integrator(
     input reset,
     input start,
     input [10:0] sample_length,
-    input signed [15:0] data_i_rot [4:0],
-    input signed [15:0] data_q_rot [4:0],
-    input [13:0] phase_vals [4:0],
-    output iq_valid,
-    output [31:0] i_val,
-    output [31:0] q_val);
+    input signed [15:0] [4:0] data_i_rot,
+    input signed [15:0] [4:0] data_q_rot,
+    output reg iq_valid,
+    output reg [31:0] i_val,
+    output reg [31:0] q_val);
 
-    IDLE = 0;
-    INTEGRATE = 1;
+    parameter IDLE = 0;
+    parameter INTEGRATE = 1;
 
     reg state = IDLE;
     reg [10:0] counter = 0;
 
+    integer i;
+    
     always @(posedge clk100) begin
         if (reset) begin
             state <= IDLE;
@@ -296,7 +303,7 @@ module integrator(
             q_val <= 0;
         end
 
-        case (state) begin
+        case (state)
             IDLE: begin
                 iq_valid <= 0;
                 if (start) begin
@@ -310,10 +317,8 @@ module integrator(
             INTEGRATE: begin
                 if (counter < sample_length) begin
                     for (i = 0; i < 5; i = i + 1) begin
-                        if ~(phase_vals[i] == 0) begin
-                            i_val <= i_val + data_i_rot[i];
-                            q_val <= q_val + data_q_rot[i];
-                        end
+                        i_val <= i_val + data_i_rot[i];
+                        q_val <= q_val + data_q_rot[i];
                     end
                 end
                 else if (counter == sample_length) begin
@@ -329,5 +334,6 @@ module integrator(
                 iq_valid <= 0;
             end
         endcase
+    end
 
 endmodule // iq_output
