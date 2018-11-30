@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 11/30/2018 08:19:42 AM
+// Create Date: 11/30/2018 10:40:17 AM
 // Design Name: 
-// Module Name: sampler_tb
+// Module Name: integrator_tb
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,9 +20,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module sampler_tb(
+module integrator_tb(
     );
-
+    
     reg clk100 = 0;
     
     initial begin
@@ -32,14 +32,14 @@ module sampler_tb(
         end
     end
     
-    wire reset = 0;
+    wire reset;
     wire start_collect = 1;
     wire [3:0] demod_freq = 4'd5; // 50 MHz
     wire [10:0] sample_length = 11'd2000; // 20 us
     wire [5:0] sample_freq = 6'd5;
     
-    reg [15:0] [4:0] data_i_in;
-    reg [15:0] [4:0] data_q_in;
+    reg [15:0] [4:0] data_i_rot;
+    reg [15:0] [4:0] data_q_rot;
     
     integer i;
     
@@ -47,8 +47,8 @@ module sampler_tb(
         #2;
         forever begin
             for (i = 0; i < 5; i = i + 1) begin
-                data_i_in[i] = data_i_in[i] + i;
-                data_q_in[i] = data_q_in[i] + i;
+                data_i_rot[i] = data_i_rot[i] + i;
+                data_q_rot[i] = data_q_rot[i] + i;
             end
             #10;
         end
@@ -56,16 +56,17 @@ module sampler_tb(
             
     wire [15:0] [4:0] data_i_shift;
     wire [15:0] [4:0] data_q_shift;
-    wire [13:0] [4:0] phase_vals;
+    wire iq_valid;
+    wire [31:0] i_val;
+    wire [31:0] q_val;    
     
-    
-    sampler uut(
+    integrator integrator_main(
         // inputs
         .clk100(clk100), .reset(reset), .start(start_collect),
-        .data_i_in(data_i_in), .data_q_in(data_q_in),
-        .demod_freq(demod_freq), .sample_length(sample_length), .sample_freq(sample_freq),
+        .sample_length(sample_length),
+        .data_i_rot(data_i_rot), .data_q_rot(data_q_rot),
         // outputs
-        .data_i_shift(data_i_shift), .data_q_shift(data_q_shift),
-        .phase_vals(phase_vals));
-
+        .iq_valid(iq_valid),
+        .i_val(i_val), .q_val(q_val));
+    
 endmodule

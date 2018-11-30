@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 11/30/2018 08:19:42 AM
+// Create Date: 11/30/2018 10:40:17 AM
 // Design Name: 
-// Module Name: sampler_tb
+// Module Name: multiplier_tb
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,9 +20,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module sampler_tb(
+module multiplier_tb(
     );
-
+    
     reg clk100 = 0;
     
     initial begin
@@ -54,18 +54,17 @@ module sampler_tb(
         end
     end
             
-    wire [15:0] [4:0] data_i_shift;
-    wire [15:0] [4:0] data_q_shift;
+    wire [15:0] [4:0] data_i_rot;
+    wire [15:0] [4:0] data_q_rot;
     wire [13:0] [4:0] phase_vals;
     
     
-    sampler uut(
+    multiplier uut(
         // inputs
-        .clk100(clk100), .reset(reset), .start(start_collect),
+        .clk100(clk100), .reset(reset),
+        .phase_vals(phase_vals),
         .data_i_in(data_i_in), .data_q_in(data_q_in),
-        .demod_freq(demod_freq), .sample_length(sample_length), .sample_freq(sample_freq),
         // outputs
-        .data_i_shift(data_i_shift), .data_q_shift(data_q_shift),
-        .phase_vals(phase_vals));
+        .data_i_rot(data_i_rot), .data_q_rot(data_q_rot));
 
 endmodule
