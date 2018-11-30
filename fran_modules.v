@@ -24,6 +24,8 @@ module hist2d(
     input signed [15:0] x_min, y_min
 
     output);
+
+    // IMPLEMENT OVERFLOW BINS
     
 
 endmodule // data_dump
