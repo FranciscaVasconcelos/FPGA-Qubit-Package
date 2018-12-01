@@ -32,14 +32,14 @@ module integrator_tb(
         end
     end
     
-    wire reset;
+    wire reset = 0;
     wire start_collect = 1;
     wire [3:0] demod_freq = 4'd5; // 50 MHz
     wire [10:0] sample_length = 11'd2000; // 20 us
     wire [5:0] sample_freq = 6'd5;
     
-    reg [15:0] [4:0] data_i_rot;
-    reg [15:0] [4:0] data_q_rot;
+    reg [15:0] [4:0] data_i_rot = 0;
+    reg [15:0] [4:0] data_q_rot = 0;
     
     integer i;
     
