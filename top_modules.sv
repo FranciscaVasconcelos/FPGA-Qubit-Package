@@ -129,7 +129,7 @@ module sampler(
     input signed [15:0] [4:0] data_q_in, // packed
     input [3:0] demod_freq,
     input [10:0] sample_length,
-    input [13:0] sample_freq,
+    input [5:0] sample_freq,
     output reg signed [15:0] [4:0] data_i_shift, // packed
     output reg signed [15:0] [4:0] data_q_shift, // packed
     output reg [13:0] [4:0] phase_vals); // packed
