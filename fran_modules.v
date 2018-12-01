@@ -218,7 +218,7 @@ module analyze_fsm(
     end
     
     // instantiate analysis modules
-    hist2d hist(.clk100(clk100),);
+    //hist2d hist(.clk100(clk100),);
 
     classify lin_class(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), 
                    .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), .i_vec_perp(i_vec_perp), 
