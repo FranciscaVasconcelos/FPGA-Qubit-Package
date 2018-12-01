@@ -38,8 +38,8 @@ module sampler_tb(
     wire [10:0] sample_length = 11'd2000; // 20 us
     wire [5:0] sample_freq = 6'd5;
     
-    reg [15:0] [4:0] data_i_in;
-    reg [15:0] [4:0] data_q_in;
+    reg [15:0] [4:0] data_i_in = 0;
+    reg [15:0] [4:0] data_q_in = 0;
     
     integer i;
     
