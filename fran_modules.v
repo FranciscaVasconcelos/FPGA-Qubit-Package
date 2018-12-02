@@ -4,26 +4,35 @@
 module bin_binary_search(
     input clk100,
     input data_in,
-    input [31:0] value,
+    input signed [31:0] value,
     input [5:0] num_bins, // value must be in range 1-63 
     input [15:0] bin_width,    
+    input signed [15:0] origin,
     
     output reg binned, // boolean that outputs 1 when value has been binned
     output reg [5:0] current); // contains value bin when binned=1 (in range 0 to num_bins, 63 if out of range)
     
     reg [5:0] max; // max possible bin value
     reg [5:0] min; // max possible bin value
-    reg [31:0] bin_value; // current bin value we are comparing to
+    reg signed [31:0] bin_value; // current bin value we are comparing to
+    
+    wire signed [6:0] current_signed;
+    wire signed [16:0] bin_width_signed;
+    
+    assign current_signed = current; // convert current to signed 
+    assign bin_width_signed = bin_width; // convert bin_width to signed
     
     always @(posedge clk100) begin
-        if(data_in) begin //
+        binned <= 0;
+        if(data_in) begin
             max <= num_bins;
             min <= 6'b0;
             current <= num_bins>>1; // start at middle of range
-            binned <= 0;
             
-            while(!binned) begin
-                bin_value <= current*bin_width;
+            while(binned == 0) begin
+                bin_value <= origin;
+                bin_value <= bin_value + current_signed*bin_width_signed;
+                
                 
                 // value falls right on bin boundary
                 if(value == bin_value) begin
@@ -98,7 +107,8 @@ module hist2d(
 
     always @(posedge clk100) begin
         if(data_in) begin // reset values for new data input
-            
+            i_val_stored <= 0;
+            q_val_stored <= 0;
         end
         
         if(i_bin_found) begin
@@ -136,7 +146,8 @@ module classify(
     input signed [31:0] i_vec_perp, q_vec_perp,
 
     // classified state of input 
-    output reg [1:0] state);
+    output reg [1:0] state,
+    output reg valid_output); // boolean: 1 when there is valid output
     
     reg signed [31:0] i_vec_pt, q_vec_pt; // vector from origin to pt to classify
 
@@ -146,8 +157,10 @@ module classify(
     parameter GROUND_STATE = 2'b01;
     parameter EXCITED_STATE = 2'b10;
     parameter CLASSIFY_LINE = 2'b11;
+    parameter ERROR = 2'b00;
 
     always @(posedge clk100) begin
+        valid_output <= 0;
         if(data_in) begin
             i_vec_pt <= i_val - i_pt_line;
             q_vec_pt <= q_val - q_pt_line;
@@ -156,11 +169,24 @@ module classify(
             dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
 
             // EXCITED STATE CLASSIFICATION
-            if(dot_product>0) state <= EXCITED_STATE;
+            if(dot_product>0) begin 
+                state <= EXCITED_STATE;
+                valid_output <= 1;
+            end
             // GROUND STATE CLASSIFICATION
-            else if (dot_product<0) state <= GROUND_STATE;
+            else if (dot_product<0) begin
+                state <= GROUND_STATE;
+                valid_output <= 1;
+            end
             // PT ON CLASSIFICATION LINE
-            else state <= CLASSIFY_LINE;
+            else if (dot_product==0) begin
+                state <= CLASSIFY_LINE;
+                valid_output <= 1;
+            end
+            // error case
+            else begin 
+                state <= ERROR;
+            end
         end
     end
 
@@ -182,7 +208,7 @@ module analyze_fsm(
     input signed [31:0] i_pt_line, q_pt_line, 
 
     // output data and mode
-    output [1:0] output_mode,
+    output reg [1:0] output_mode,
     output reg [63:0] output_channels);
 
     wire [1:0] state = analyze_mode;
@@ -233,7 +259,7 @@ module data_dump(
     input data_in, // indicates if new i,q data is coming in 
     input [31:0] i_val, q_val,
 
-    output [63:0] i_q_vals);
+    output reg [63:0] i_q_vals);
 
     always @(posedge clk100) begin
         if(data_in) begin
