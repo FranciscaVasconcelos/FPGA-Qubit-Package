@@ -59,7 +59,7 @@ module classify_tb(
             i_val = i_val + 1;
             q_val = q_val + 1;
             data_in = 0;
-            #20;
+            #100;
         end
     end
    

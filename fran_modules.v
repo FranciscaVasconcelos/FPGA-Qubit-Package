@@ -2,9 +2,11 @@
 
 // recursive algorithm to find bin! :D
 module bin_binary_search(
+    // dynamic input
     input clk100,
     input data_in,
     input signed [31:0] value,
+    // static input
     input [5:0] num_bins, // value must be in range 1-63 
     input [15:0] bin_width,    
     input signed [15:0] origin,
@@ -12,119 +14,101 @@ module bin_binary_search(
     output reg binned, // boolean that outputs 1 when value has been binned
     output reg [5:0] current); // contains value bin when binned=1 (in range 0 to num_bins, 63 if out of range)
     
+    reg signed [31:0] val; // for storing value when data_in = 1;
+    
     reg [5:0] max; // max possible bin value
     reg [5:0] min; // max possible bin value
     reg signed [31:0] bin_value; // current bin value we are comparing to
     
-    reg stop = 0; // prevents fsm from running after binned value found
-    
     wire signed [6:0] current_signed;
     wire signed [16:0] bin_width_signed;
-    wire signed [6:0] max_signed;
-    wire signed [6:0] min_signed;
     
     assign current_signed = current; // convert current to signed 
     assign bin_width_signed = bin_width; // convert bin_width to signed
-    assign max_signed = max;
-    assign min_signed = min;
+    
+    reg [1:0] search_state; // make FSM to run search algo and properly update values
+    parameter UPDATE_BIN_VAL = 2'b00;
+    parameter RUN_ALGO = 2'b01;
+    parameter OUTPUT_RESULT = 2'b10;
+    parameter RESET = 2'b11;
+    
+    initial begin
+        search_state = RESET;
+    end
     
     always @(posedge clk100) begin
-        if(stop) binned <= 0;
-        
-        if(data_in) begin
+
+        case(search_state)
+            UPDATE_BIN_VAL: begin
+                bin_value <= origin+(current_signed*bin_width_signed);
+                search_state <= RUN_ALGO;
+            end
+            
+            RUN_ALGO: begin
+                // value falls right on bin boundary
+                if(val == bin_value) begin
+                    search_state <= OUTPUT_RESULT;
+                end
+                // value in smaller bin
+                else if(val < bin_value) begin
+                    // value outside of binning range
+                    if(current == min) begin 
+                       current <= 6'b111111;
+                       search_state <= OUTPUT_RESULT;
+                    end
+                    // boundaries have converged to bin
+                    else if (val > bin_value - bin_width_signed) begin
+                        current <= min;
+                        search_state <= OUTPUT_RESULT;
+                    end
+                    // continue search
+                    else begin 
+                        max <= current; // set new maximum boundary
+                        current <= ((current - min) >> 1) + min; // half way between current and min
+                        search_state <= UPDATE_BIN_VAL;
+                    end
+                end
+                // value in current or larger bin
+                else begin
+                    // boundaries have converged to bin
+                    if (val < bin_value + bin_width_signed) begin
+                        current <= min;
+                        search_state <= OUTPUT_RESULT;
+                    end
+                    // value outside of range
+                    else if (current == max-1) begin 
+                        current <= 6'b111111;
+                        search_state <= OUTPUT_RESULT;
+                    end
+                    // continue search
+                    else begin 
+                        min <= current; // set new minimum boundary
+                        current <= ((max - current) >> 1) + current; // half way between current and max
+                        search_state <= UPDATE_BIN_VAL;
+                    end
+                end
+            end
+            
+            OUTPUT_RESULT: begin
+                binned <= 1;
+                search_state <= RESET;
+            end
+            
+            RESET: begin
+                binned <= 0;
                 max <= num_bins;
                 min <= 6'b0;
                 current <= num_bins>>1; // start at middle of range
                 bin_value <= 32'd0;
                 binned <= 0;
-                stop <= 0;
-        end
-        else if (!stop) begin 
-            bin_value <= origin+(current_signed*bin_width_signed);
-             
-            // value falls right on bin boundary
-            if(value == bin_value) begin
-                binned <= 1;
-                stop <= 1;
-            end
-            // boundaries have converged to bin
-            else if(value < max_signed*bin_width_signed+origin && value > min_signed*bin_width_signed+origin) begin
-                binned <= 1;
-                stop <= 1;
-                current <= min;
-            end
-            // value in smaller bin
-            else if(value < bin_value) begin
-                if(current == min) begin // value outside of binning range
-                   current <= 6'b111111;
-                   binned <= 1;
-                   stop <= 1;
-                end
-                else begin 
-                    max <= current; // set new maximum boundary
-                    current <= current >> 1; // divide current by 2
+                if(data_in) begin
+                    val <= value;
+                    search_state <= UPDATE_BIN_VAL;
                 end
             end
-            // value in current or larger bin
-            else begin
-                if(current == max) begin // value outside of binning range
-                    current <= 6'b111111;
-                    binned <= 1;
-                    stop <= 1;
-                end
-                else begin 
-                    min <= current; // set new minimum boundary
-                    current <= (max - current) >> 1;
-                end
-            end
-        end
+        endcase
 
-        /*if(data_in) begin
-            max <= num_bins;
-            min <= 6'b0;
-            current <= num_bins>>1; // start at middle of range
-            bin_value <= 32'd0;
-            
-            
-            while(binned == 0) begin
-                bin_value = origin+(current_signed*bin_width_signed);
-                
-                // value falls right on bin boundary
-                if(value == bin_value) begin
-                    binned = 1;
-                end
-                // boundaries have converged to bin
-                else if(max == min + 1) begin
-                    binned = 1;
-                    current = min;
-                end
-                // value in smaller bin
-                else if(value < bin_value) begin
-                    if(current == min) begin // value outside of binning range
-                        current = 6'b111111;
-                       binned = 1;
-                    end
-                    else begin 
-                        max = current; // set new maximum boundary
-                        current = current >> 1; // divide current by 2
-                    end
-                end
-                // value in current or larger bin
-                else begin
-                    if(current == max) begin // value outside of binning range
-                        current = 6'b111111;
-                        binned = 1;
-                    end
-                    else begin 
-                        min = current; // set new minimum boundary
-                        current = (max - current) >> 1;
-                    end
-                end
-            end 
-        end*/
     end
-    
-    //assign binned = binned_reg;
 
 endmodule
 
@@ -195,9 +179,12 @@ endmodule // hist2d
 
 // perform linear classification of data points
 module classify(
+    // dynamic input
     input clk100,
     input data_in, // indicates if new i,q data is coming in 
     input signed [31:0] i_val, q_val, // pt to be classified
+    
+    // static input
     input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
     // vector from origin with slope perpendicular to line, pts in direction of excited state
     input signed [31:0] i_vec_perp, q_vec_perp,
@@ -215,9 +202,62 @@ module classify(
     parameter EXCITED_STATE = 2'b10;
     parameter CLASSIFY_LINE = 2'b11;
     parameter ERROR = 2'b00;
-
+    
+    reg [1:0] comp_state; // fsm to sequentially perform computation steps
+    parameter DOT_PRODUCT = 2'b00;
+    parameter CLASSIFY = 2'b01;
+    parameter RESET = 2'b10;
+    
+    initial begin 
+        comp_state <= RESET;
+    end
+    
+    // NOTE: MIGHT NEED TO ADD BUFER STATES TO ACCOUNT FOR OPERATION LAG (IF OPS EXCEED CLOCK CYCLE)
     always @(posedge clk100) begin
-        valid_output <= 0;
+        case(comp_state)
+            
+            DOT_PRODUCT: begin
+                dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
+                comp_state <= CLASSIFY;
+            end
+            
+            CLASSIFY: begin
+                // EXCITED STATE CLASSIFICATION
+                if(dot_product>0) begin 
+                    state <= EXCITED_STATE;
+                    valid_output <= 1;
+                end
+                // GROUND STATE CLASSIFICATION
+                else if (dot_product<0) begin
+                    state <= GROUND_STATE;
+                    valid_output <= 1;
+                end
+                // PT ON CLASSIFICATION LINE
+                else if (dot_product==0) begin
+                    state <= CLASSIFY_LINE;
+                    valid_output <= 1;
+                end
+                // error case
+                else begin 
+                    state <= ERROR;
+                end
+                comp_state <= RESET;
+            end
+            
+            RESET: begin 
+                valid_output <= 0;
+                if(data_in) begin
+                    i_vec_pt <= i_val - i_pt_line;
+                    q_vec_pt <= q_val - q_pt_line;
+                    comp_state <= DOT_PRODUCT;
+                end
+            end
+            
+            default: comp_state <= RESET;
+        
+        endcase
+    
+        /*valid_output <= 0;
         if(data_in) begin
             i_vec_pt <= i_val - i_pt_line;
             q_vec_pt <= q_val - q_pt_line;
@@ -244,7 +284,7 @@ module classify(
             else begin 
                 state <= ERROR;
             end
-        end
+        end*/
     end
 
 endmodule // classify
