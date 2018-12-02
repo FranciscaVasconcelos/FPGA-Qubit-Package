@@ -112,10 +112,17 @@ module bin_binary_search(
 
 endmodule
 
-// counts streaming bin vals to output constructed histogram to computer
-module hist2d_construct(
-
-);
+// keeps running count of streaming bin vals to make 3d histogram
+module hist2d_count(
+        input clk100,
+        input data_in,
+        input [5:0] i_bin_coord, q_bin_coord,
+        
+        input reset_count, // sets all bins to zero
+        
+        output 
+        output [15:0] bin_val 
+    );
 
 endmodule
 
@@ -132,47 +139,91 @@ module hist2d(
     input signed [15:0] i_min, q_min, // bin origin
     input stream_mode, // 1 to output bin coords as they come in, 0 to construct histogram and then stream
     
-    output reg valid_output, // boolean - 1 indicates valid data is on output lines
-    output reg [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
-    output reg [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
-    output reg [15:0] bin_val); // total number of binnable values is 65536
+    output valid_output, // boolean - 1 indicates valid data is on output lines
+    output [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
+    output [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
+    output [15:0] bin_val); // total number of binnable values is 65536
     
     wire i_bin_found; // boolean: 1 when bin # for i data pt is found
     wire [5:0] i_bin_val;
-    
-    reg i_val_stored; // boolean: 1 when i bin val for current data point is saved
-    reg q_val_stored; // boolean: 1 when q bin val for current data point is saved 
+    reg [5:0] i_bin_store; 
     
     wire q_bin_found; // boolean: 1 when bin # for q data pt is found
     wire [5:0] q_bin_val;
+    reg [5:0] q_bin_store;
+    
+    reg i_q_found; // boolean: indicates when both i and q vals found
+    
+    reg [1:0] hist_state; // fsm to do 2d hist sequentially
+    parameter SEARCHING = 2'b00;
+    parameter ONE_FOUND = 2'b01;
+    parameter TWO_FOUND = 2'b10;
+    parameter RESET = 2'b11
 
     always @(posedge clk100) begin
-        if(data_in) begin // reset values for new data input
-            i_val_stored <= 0;
-            q_val_stored <= 0;
-        end
-        
-        if(i_bin_found) begin
-            if(stream_mode) begin
-                i_bin_coord <= i_bin_val;
-                i_val_stored <= 1;
+        case(hist_state) begin
+            SEARCHING: begin
+                if(i_bin_found && q_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    i_bin_store <= i_bin_val;
+                    q_bin_store <= q_bin_val;
+                end
+                else if(i_bin_found) begin
+                    hist_state <= ONE_FOUND;
+                    i_bin_store <= i_bin_val;
+                end
+                else if(q_bin_found) begin
+                    hist_state <= ONE_FOUND;
+                    q_bin_store <= q_bin_val;
+                end
             end
-        end
-        if(q_bin_found) begin
-            if(stream_mode) begin
-                q_bin_coord <= q_bin_val;
-                q_val_stored <= 1;
+            
+            ONE_FOUND: begin
+                if(i_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    i_bin_store <= i_bin_val;
+                end
+                else if(q_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    q_bin_store <= q_bin_val;
+                end
             end
-        end
-        if(i_val_stored && q_val_stored) valid_output <= 1;
+            
+            TWO_FOUND: begin
+                if(stream_mode) begin
+                    i_bin_coord <= i_bin_store;
+                    q_bin_coord <= q_bin_store;
+                    i_q_found; <= 1;
+                    bin_val <= 0;
+                    hist_state <= RESET;
+                end
+                else begin
+                    i_q_found; <= 1;
+                    hist_state <= RESET;
+                end
+            end
+            
+            RESET: begin
+                i_bin_coord <= 0;
+                q_bin_coord <= 0;
+                i_q_found; <= 0;
+                bin_val <= 0;
+                if(data_in) hist_state <= SEARCHING;
+            end
+        endcase
         
     end
     
-    // perform binary search along i axis
-    bin_binary_search i_search(.clk100(clk100), .data_in(data_in), .value(i_val), .num_bins(i_bin_num), .bin_width(i_bin_width), .binned(i_bin_found), .current(i_bin_val));
+    assign valid_output = i_q_found;
     
     // perform binary search along i axis
-    bin_binary_search q_search(.clk100(clk100), .data_in(data_in), .value(q_val), .num_bins(q_bin_num), .bin_width(q_bin_width), .binned(q_bin_found), .current(q_bin_val));
+    bin_binary_search i_search(.clk100(clk100), .data_in(data_in), .value(i_val), .num_bins(i_bin_num), .bin_width(i_bin_width), .origin(i_min), .binned(i_bin_found), .current(i_bin_val));
+    
+    // perform binary search along q axis
+    bin_binary_search q_search(.clk100(clk100), .data_in(data_in), .value(q_val), .num_bins(q_bin_num), .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
+    
+    // make 2d histogram in FPGA
+    hist2d_count histogram(.clk100(clk100), .data_in(i_q_found), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), .data_out()) //need to implement memory, timing, and reset of this!
     
 
 endmodule // hist2d
@@ -256,35 +307,7 @@ module classify(
             default: comp_state <= RESET;
         
         endcase
-    
-        /*valid_output <= 0;
-        if(data_in) begin
-            i_vec_pt <= i_val - i_pt_line;
-            q_vec_pt <= q_val - q_pt_line;
 
-            // basic implementation, can be improved by looking just at signs/with tricks
-            dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
-
-            // EXCITED STATE CLASSIFICATION
-            if(dot_product>0) begin 
-                state <= EXCITED_STATE;
-                valid_output <= 1;
-            end
-            // GROUND STATE CLASSIFICATION
-            else if (dot_product<0) begin
-                state <= GROUND_STATE;
-                valid_output <= 1;
-            end
-            // PT ON CLASSIFICATION LINE
-            else if (dot_product==0) begin
-                state <= CLASSIFY_LINE;
-                valid_output <= 1;
-            end
-            // error case
-            else begin 
-                state <= ERROR;
-            end
-        end*/
     end
 
 endmodule // classify
