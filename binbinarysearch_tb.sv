@@ -29,7 +29,7 @@ module binbinarysearch_tb(
     
     reg data_in = 0;
     
-    reg signed [31:0] value = -32'd5;
+    reg signed [31:0] value = -32'd9;
     reg [5:0] num_bins = 6'd3;
     reg [15:0] bin_width = 16'd10;
     
@@ -45,7 +45,7 @@ module binbinarysearch_tb(
             #20;
             value = value + 2;
             data_in = 0;
-            #20;
+            #200;
         end
     end
    

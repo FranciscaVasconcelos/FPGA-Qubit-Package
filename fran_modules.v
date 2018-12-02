@@ -16,58 +16,115 @@ module bin_binary_search(
     reg [5:0] min; // max possible bin value
     reg signed [31:0] bin_value; // current bin value we are comparing to
     
+    reg stop = 0; // prevents fsm from running after binned value found
+    
     wire signed [6:0] current_signed;
     wire signed [16:0] bin_width_signed;
+    wire signed [6:0] max_signed;
+    wire signed [6:0] min_signed;
     
     assign current_signed = current; // convert current to signed 
     assign bin_width_signed = bin_width; // convert bin_width to signed
+    assign max_signed = max;
+    assign min_signed = min;
     
     always @(posedge clk100) begin
-        binned <= 0;
+        if(stop) binned <= 0;
+        
         if(data_in) begin
+                max <= num_bins;
+                min <= 6'b0;
+                current <= num_bins>>1; // start at middle of range
+                bin_value <= 32'd0;
+                binned <= 0;
+                stop <= 0;
+        end
+        else if (!stop) begin 
+            bin_value <= origin+(current_signed*bin_width_signed);
+             
+            // value falls right on bin boundary
+            if(value == bin_value) begin
+                binned <= 1;
+                stop <= 1;
+            end
+            // boundaries have converged to bin
+            else if(value < max_signed*bin_width_signed+origin && value > min_signed*bin_width_signed+origin) begin
+                binned <= 1;
+                stop <= 1;
+                current <= min;
+            end
+            // value in smaller bin
+            else if(value < bin_value) begin
+                if(current == min) begin // value outside of binning range
+                   current <= 6'b111111;
+                   binned <= 1;
+                   stop <= 1;
+                end
+                else begin 
+                    max <= current; // set new maximum boundary
+                    current <= current >> 1; // divide current by 2
+                end
+            end
+            // value in current or larger bin
+            else begin
+                if(current == max) begin // value outside of binning range
+                    current <= 6'b111111;
+                    binned <= 1;
+                    stop <= 1;
+                end
+                else begin 
+                    min <= current; // set new minimum boundary
+                    current <= (max - current) >> 1;
+                end
+            end
+        end
+
+        /*if(data_in) begin
             max <= num_bins;
             min <= 6'b0;
             current <= num_bins>>1; // start at middle of range
+            bin_value <= 32'd0;
+            
             
             while(binned == 0) begin
-                bin_value <= origin;
-                bin_value <= bin_value + current_signed*bin_width_signed;
-                
+                bin_value = origin+(current_signed*bin_width_signed);
                 
                 // value falls right on bin boundary
                 if(value == bin_value) begin
-                    binned <= 1;
+                    binned = 1;
                 end
                 // boundaries have converged to bin
                 else if(max == min + 1) begin
-                    binned <= 1;
-                    current <= min;
+                    binned = 1;
+                    current = min;
                 end
                 // value in smaller bin
                 else if(value < bin_value) begin
                     if(current == min) begin // value outside of binning range
-                        current <= 6'b111111;
-                        binned <= 1;
+                        current = 6'b111111;
+                       binned = 1;
                     end
                     else begin 
-                        max <= current; // set new maximum boundary
-                        current <= current >> 1; // divide current by 2
+                        max = current; // set new maximum boundary
+                        current = current >> 1; // divide current by 2
                     end
                 end
                 // value in current or larger bin
                 else begin
                     if(current == max) begin // value outside of binning range
-                        current <= 6'b111111;
-                        binned <= 1;
+                        current = 6'b111111;
+                        binned = 1;
                     end
                     else begin 
-                        min <= current; // set new minimum boundary
-                        current <= (max - current) >> 1;
+                        min = current; // set new minimum boundary
+                        current = (max - current) >> 1;
                     end
                 end
             end 
-        end
+        end*/
     end
+    
+    //assign binned = binned_reg;
 
 endmodule
 
