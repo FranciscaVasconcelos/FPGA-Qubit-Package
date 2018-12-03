@@ -22,16 +22,16 @@
 
 module multiplier_tb(
     );
-    
+
     reg clk100 = 0;
     
     initial begin
         forever begin
             clk100 = ~clk100;
-            #10;
+            #5;
         end
     end
-    
+
     wire reset = 0;
     wire start_collect = 1;
     wire [3:0] demod_freq = 4'd5; // 50 MHz
@@ -40,6 +40,7 @@ module multiplier_tb(
     
     reg [15:0] [4:0] data_i_in = 0;
     reg [15:0] [4:0] data_q_in = 0;
+    reg [13:0] [4:0] phase_vals = 0;
     
     integer i;
     
@@ -49,6 +50,7 @@ module multiplier_tb(
             for (i = 0; i < 5; i = i + 1) begin
                 data_i_in[i] = data_i_in[i] + i;
                 data_q_in[i] = data_q_in[i] + i;
+                phase_vals[i] = phase_vals[i] + i;  
             end
             #10;
         end
@@ -56,8 +58,7 @@ module multiplier_tb(
             
     wire [15:0] [4:0] data_i_rot;
     wire [15:0] [4:0] data_q_rot;
-    wire [13:0] [4:0] phase_vals;
-    
+
     
     multiplier uut(
         // inputs
