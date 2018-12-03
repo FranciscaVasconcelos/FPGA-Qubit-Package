@@ -112,15 +112,16 @@ module bin_binary_search(
 
 endmodule
 
-// keeps running count of streaming bin vals to make 3d histogram
+// keeps running count of streaming bin vals to make 2d histogram
 module hist2d_count(
+        // dynamic input
         input clk100,
         input data_in,
         input [5:0] i_bin_coord, q_bin_coord,
-        
-        input reset_data_output, // sets all bins to zero
-        input start_data_output, // begins data stream
-        input pause_data_output, // pause data stream
+
+        // static input
+        input [15:0] num_data_pts, // total number of points to be binned
+        input [11:0] i_bin_num, q_bin_num, // number of bins along axis
         
         output reg data_out,
         output reg [15:0] bin_val,
@@ -128,58 +129,72 @@ module hist2d_count(
     );
     
     // store 2d array in 1d bram, by making i LSB and q MSB
-    parameter WIDTH = 6;
-    parameter VAL = 64;
+    reg [15:0] bin_count [4095:0]; // bin vals BRAM
     
-    reg [15:0] bin_count [2*WIDTH:0] = 0; // bin vals BRAM
+    reg [15:0] data_in_count = 0; 
+    reg [5:0] i_out_count = 0, q_out_count = 0;
     
-    reg [2*WIDTH:0] output_count=0; // to keep track of bin number
-    reg [5:0] i_out_count, q_out_count;
-    
-    reg data_mode; // use fsm to keep track of mode
+    reg [1:0] data_mode; // use fsm to keep track of mode
     parameter DATA_IN = 2'b00;
     parameter DATA_OUT = 2'b01;
+    parameter HOLD = 2'b10;
+    
+    integer i,j;
+    
+    initial begin 
+        data_mode <= DATA_IN;
+        for (j=0; j < q_bin_num; j=j+1) begin
+            for (i=0; i < i_bin_num; i=i+1) begin
+                bin_count[i+j*(i_bin_num)] = 16'b0; //reset array
+            end
+        end
+    end
     
     always @(posedge clk100) begin
-        
-        if (reset_data_output) begin
-            for (j=0; j < VAL; j=j+1) begin
-                for (i=0; i < VAL; i=i+1) begin
-                    bin_count[i+j*VAL] <= 15'b0; //reset array
-                end
-            end
-            data_mode <= DATA_IN;
-            i_out_count <= 0;
-            q_out_count <= 0;
-            bin_val <= 0;    
-        end
-        
-        if(start_data_output) data_mode <= DATA_OUT;
-        if(pause_data_output) data_mode <= DATA_IN;
         
         case(data_mode) 
         
             DATA_IN: begin
                 if(data_in) begin
-                    bin_count[i_bin_coord+q_bin_coord*VAL] <= bin_count[i_bin_coord+q_bin_coord*VAL] + 1;
+                    bin_count[i_bin_coord+q_bin_coord*(i_bin_num)] <= bin_count[i_bin_coord+q_bin_coord*(i_bin_num)] + 1;
+                    data_in_count <= data_in_count + 1;
                 end
+                if(data_in_count == num_data_pts) data_mode <= DATA_OUT;
             end
             
             DATA_OUT: begin
-                if(output_count < VAL*VAL) begin 
+                $display("%d,%d,%d,%d",i_bin_num,q_bin_num,i_out_count + q_out_count*(i_bin_num),i_bin_num*q_bin_num);
+                if(i_out_count + q_out_count*(i_bin_num) < i_bin_num*q_bin_num) begin 
                     data_out <= 1;
-                    bin_val <= bin_count[output_count];
-                    
-                    i_out_count <= i_out_count+1;
-                    if(i_out_count == 6'b111111) q_out_count <= q_out_count+1;
+                    bin_val <= bin_count[i_out_count + q_out_count*(i_bin_num)];
+                    data_mode <= HOLD;
                 end
                 else begin
+                    for (j=0; j < q_bin_num; j=j+1) begin
+                        for (i=0; i < i_bin_num; i=i+1) begin
+                            bin_count[i+j*(i_bin_num)] = 16'b0; //reset array
+                        end
+                    end
                     data_mode <= DATA_IN;
                     i_out_count <= 0;
                     q_out_count <= 0;
-                    bin_val <= 0;
+                    bin_val <= 0; 
+                    data_out <= 0;
+                    data_in_count <= 0;
                 end
             end
+            
+            HOLD: begin
+                data_out <= 0;
+                if(i_out_count < i_bin_num-1) i_out_count <= i_out_count+1;
+                else begin 
+                    q_out_count <= q_out_count+1;
+                    i_out_count <= 0;
+                end
+                data_mode <= DATA_OUT;
+            end
+            
+            default: data_mode <= DATA_IN;
             
         endcase  
     end 
@@ -196,15 +211,16 @@ module hist2d(
     input [31:0] i_val, q_val,
     
     // static input (from config)
-    input [4:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
+    input [5:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
     input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
     input signed [15:0] i_min, q_min, // bin origin
+    input num_data_pts, // total number of points to be binned
     input stream_mode, // 1 to output bin coords as they come in, 0 to construct histogram and then stream
     
     output valid_output, // boolean - 1 indicates valid data is on output lines
-    output [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
-    output [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
-    output [15:0] bin_val); // total number of binnable values is 65536
+    output reg [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
+    output reg [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
+    output reg [15:0] bin_val); // total number of binnable values is 65536
     
     wire i_bin_found; // boolean: 1 when bin # for i data pt is found
     wire [5:0] i_bin_val;
@@ -287,9 +303,9 @@ module hist2d(
                                .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
     
     // make 2d histogram in FPGA
-    hist2d_count histogram(.clk100(clk100), .data_in(i_q_found), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), .data_out());
-    
-
+    hist2d_count histogram(.clk100(clk100), .data_in(i_q_found), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), 
+                           .num_data_pts(num_data_pts), .data_out(valid_output), .bin_val(bin_val),
+                           .i_bin_out(i_bin_coord), .q_bin_out(q_bin_coord));
 endmodule // hist2d
 
 // perform linear classification of data points
