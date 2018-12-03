@@ -28,12 +28,12 @@ module sampler_tb(
     initial begin
         forever begin
             clk100 = ~clk100;
-            #10;
+            #5;
         end
     end
     
     wire reset = 0;
-    wire start_collect = 1;
+    wire start_collect = 0;
     wire [3:0] demod_freq = 4'd5; // 50 MHz
     wire [10:0] sample_length = 11'd2000; // 20 us
     wire [5:0] sample_freq = 6'd5;
@@ -44,14 +44,21 @@ module sampler_tb(
     integer i;
     
     initial begin
-        #2;
+        #1;
         forever begin
             for (i = 0; i < 5; i = i + 1) begin
                 data_i_in[i] = data_i_in[i] + i;
                 data_q_in[i] = data_q_in[i] + i;
             end
-            #10;
+            #5;
         end
+    end
+
+    initial begin
+        #1;
+        start_collect = 1;
+        #10;
+        start_collect = 0;
     end
             
     wire [15:0] [4:0] data_i_shift;

@@ -142,6 +142,9 @@ module sampler(
     reg [13:0] sample_skip;
     reg [2:0] skip_hold;
 
+    wire [1:0] skip_hold_LUT [3:0] [3:0];
+    assign skip_hold_LUT = {{}, {}, {}, {}}
+
     always @(posedge clk100) begin
         if (reset) begin
             state <= IDLE;
@@ -154,35 +157,132 @@ module sampler(
         data_i_shift <= data_i_in;
         data_q_shift <= data_q_in;
 
+        // TODO: calculate correct phase_vals
         case (state)
             IDLE: begin
                 if (start) begin // from timing, assert on same clock sample as value to sample
                     state <= SAMPLE;
-                    counter <= counter + 1;
-                    phase_vals[1] <= (1 % sample_skip == 0) ? demod_freq : 0; // phase_vals set at next clock cycle
-                    phase_vals[2] <= (2 % sample_skip == 0) ? 2*demod_freq : 0;
-                    phase_vals[3] <= (3 % sample_skip == 0) ? 3*demod_freq : 0;
-                    phase_vals[4] <= (4 % sample_skip == 0) ? 4*demod_freq : 0;
-                end 
-                else
+                    counter <= 1;
+                    if (sample_skip < 5) begin
+                        if (sample_skip == 1) begin
+                            phase_vals[0] <= 1; // phase_vals set at next clock cycle
+                            phase_vals[1] <= 1;
+                            phase_vals[2] <= 1;
+                            phase_vals[3] <= 1;
+                            phase_vals[4] <= 1;
+                            skip_hold <= 0;
+                        end
+                        else if (sample_skip == 2) begin
+                            phase_vals[0] <= 1;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 1;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 1;
+                            skip_hold <= 0;
+                        end
+                        else if (sample_skip == 3) begin
+                            phase_vals[0] <= 1;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 1;
+                            phase_vals[4] <= 0;
+                            skip_hold <= 1;
+                        end
+                        else if (sample_skip == 4) begin
+                            phase_vals[0] <= 1;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 1;
+                            skip_hold <= 3;
+                        end
+                    end // if (sample_skip < 5)
+                    else begin // sample_skip > 5
+                        phase_vals[0] <= 1;
+                        phase_vals[1] <= 0;
+                        phase_vals[2] <= 0;
+                        phase_vals[3] <= 0;
+                        phase_vals[4] <= 0;
+                        skip_hold <= sample_skip - 5;
+                        end
+                    end
+                end // if (start)
+                else // IDLE && ~start
                     phase_vals <= {5{14'b0}};
             end 
 
             SAMPLE: begin
-                if (counter < sample_length) begin
+                if (counter < sample_length) begin // within sampling range
                     counter <= counter + 1;
-                    phase_vals[0] <= (5*counter % sample_skip == 0) ? demod_freq * (5*counter) : 0;
-                    phase_vals[1] <= ((5*counter + 1) % sample_skip == 0) ? demod_freq * (5*counter + 1) : 0;
-                    phase_vals[2] <= ((5*counter + 2) % sample_skip == 0) ? demod_freq * (5*counter + 2) : 0;
-                    phase_vals[3] <= ((5*counter + 3) % sample_skip == 0) ? demod_freq * (5*counter + 3) : 0;
-                    phase_vals[4] <= ((5*counter + 4) % sample_skip == 0) ? demod_freq * (5*counter + 4) : 0;
-                end
-                else begin
+                    if ((skip_hold < 5) && (sample_skip < 5)) begin
+                        for (i = 0; i < 5; i = i + 1) begin
+                            if (skip_hold == i)
+                                phase_vals[i] <= 1;
+                            if ((skip_hold + sample_skip) == i) begin
+                                phase_vals[i] <= 1;
+                            if ((skip_hold + 2 * sample_skip) == i) begin
+                                phase_vals[i] <= 1;
+                            if ((skip_hold + 3 * sample_skip) == i) begin
+                                phase_vals[i] <= 1;
+                            if ((skip_hold + 4 * sample_skip) == i) begin
+                                phase_vals[i] <= 1;
+                        end // for (i = 0; i < 5; i = i + 1)
+                        skip_hold <= sample_skip - (5 - sample_skip);
+                    end // if ((skip_hold < 5) && (sample_skip < 5))
+
+                    else if ((skip_hold < 5) && (sample_skip >= 5)) begin
+                        if (skip_hold == 0) begin
+                            phase_vals[0] <= 1;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 0;
+                            skip_hold <= sample_skip - 5;
+                        end
+                        else if (skip_hold == 1) begin
+                            phase_vals[0] <= 0;
+                            phase_vals[1] <= 1;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 0;
+                            skip_hold <= sample_skip - 4;
+                        end
+                        else if (skip_hold == 2) begin
+                            phase_vals[0] <= 0;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 1;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 0;
+                            skip_hold <= sample_skip - 3;
+                        end
+                        else if (skip_hold == 3) begin
+                            phase_vals[0] <= 0;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 1;
+                            phase_vals[4] <= 0;
+                            skip_hold <= sample_skip - 2;
+                        end
+                        else if (skip_hold == 4) begin
+                            phase_vals[0] <= 0;
+                            phase_vals[1] <= 0;
+                            phase_vals[2] <= 0;
+                            phase_vals[3] <= 0;
+                            phase_vals[4] <= 1;
+                            skip_hold <= sample_skip - 1;
+                        end
+                    end // else if ((skip_hold < 5) && (sample_skip >= 5))
+                    else // ((skip_hold > 5) && (sample_skip >= 5))
+                        skip_hold <= skip_hold - 5;
+                end // if (counter < sample_length)
+
+                else begin // stop sampling, set to IDLE
                     counter <= 0;
                     state <= IDLE;
                     phase_vals <= {5{14'b0}};
                 end
             end
+
             default: begin
                 counter <= 0;
                 state <= IDLE;
