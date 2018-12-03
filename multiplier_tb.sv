@@ -38,9 +38,9 @@ module multiplier_tb(
     wire [10:0] sample_length = 11'd2000; // 20 us
     wire [5:0] sample_freq = 6'd5;
     
-    reg [15:0] [4:0] data_i_in = 0;
-    reg [15:0] [4:0] data_q_in = 0;
-    reg [13:0] [4:0] phase_vals = 0;
+    reg [4:0] [15:0] data_i_in = 0;
+    reg [4:0] [15:0] data_q_in = 0;
+    reg [4:0] [13:0] phase_vals = 0;
     
     integer i;
     
@@ -56,9 +56,8 @@ module multiplier_tb(
         end
     end
             
-    wire [15:0] [4:0] data_i_rot;
-    wire [15:0] [4:0] data_q_rot;
-
+    wire [4:0] [15:0] data_i_rot;
+    wire [4:0] [15:0] data_q_rot;
     
     multiplier uut(
         // inputs
