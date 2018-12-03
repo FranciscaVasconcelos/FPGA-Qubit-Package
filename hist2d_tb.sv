@@ -25,58 +25,46 @@ module hist2d_tb(
 
     reg clk100 = 0;
     
-    /*initial begin
-        forever begin
-            clk100 = ~clk100;
-            #10;
-        end
-    end*/
     
     always #10 clk100 = ~clk100;
     
-    wire signed [31:0] i_pt_line = 32'd0;
-    wire signed [31:0] q_pt_line = 32'd2;
+    // dynamic input
+    reg data_in;
+    reg signed [31:0] i_val, q_val;
+
+    reg [5:0] i_bin_num = 10, q_bin_num = 10;
+    reg [15:0] i_bin_width = 1, q_bin_width = 1;
+    reg signed [15:0] i_min = 0, q_min = 0;
+    reg [15:0] num_data_pts = 10;
+    reg stream_mode = 1;
     
-    wire signed [31:0] i_vec_perp = 32'd0;
-    wire signed [31:0] q_vec_perp = 32'd1;
-    
-    reg data_in = 0;
-    reg signed [31:0] i_val = 32'd0; 
-    reg signed [31:0] q_val = 32'd0;
-    
-    reg [6:0] counter = 7'd90;
-    
-    wire [1:0] output_state;
     wire valid_output;
+    wire [5:0] i_bin_coord;
+    wire [5:0] q_bin_coord; 
+    wire [15:0] bin_val; 
     
+    reg [15:0] count = 0;
+    
+   
     initial begin
         i_val = -32'd3;
         q_val = -32'd3;
         #2
-        forever begin
+        while(count < num_data_pts) begin
             data_in = 1;
             #20;
             i_val = i_val + 1;
             q_val = q_val + 1;
             data_in = 0;
-            #20;
+            count = count + 1;   
+            #400;
         end
     end
    
-    
-    /*always @(posedge clk100) begin 
-        if(data_in == 1) data_in <= 0;
-        
-        if(counter== 7'd100) begin 
-            data_in = 1;
-            i_val = i_val + 1;
-            q_val = q_val + 1;
-            counter <= 7'd0;
-        end
-        else counter <= counter + 1;
-    end*/
  
-    classify uut(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
-                 .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .state(output_state), .valid_output(valid_output));
+    hist2d uut(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num),
+               .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .num_data_pts(num_data_pts),
+               .stream_mode(stream_mode), .i_q_found(valid_output), .i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
+               .bin_val(bin_val));
 
 endmodule

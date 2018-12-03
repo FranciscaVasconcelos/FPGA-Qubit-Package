@@ -208,16 +208,16 @@ module hist2d(
     // dynamic input
     input clk100,
     input data_in,
-    input [31:0] i_val, q_val,
+    input signed [31:0] i_val, q_val,
     
     // static input (from config)
     input [5:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
     input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
     input signed [15:0] i_min, q_min, // bin origin
-    input num_data_pts, // total number of points to be binned
+    input [15:0] num_data_pts, // total number of points to be binned
     input stream_mode, // 1 to output bin coords as they come in, 0 to construct histogram and then stream
     
-    output valid_output, // boolean - 1 indicates valid data is on output lines
+    output reg i_q_found, // boolean - 1 indicates valid data is on output lines
     output reg [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
     output reg [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
     output reg [15:0] bin_val); // total number of binnable values is 65536
@@ -230,13 +230,21 @@ module hist2d(
     wire [5:0] q_bin_val;
     reg [5:0] q_bin_store;
     
-    reg i_q_found; // boolean: indicates when both i and q vals found
+    reg i_q_found = 0; // boolean: indicates when both i and q vals found
     
     reg [1:0] hist_state; // fsm to do 2d hist sequentially
     parameter SEARCHING = 2'b00;
     parameter ONE_FOUND = 2'b01;
     parameter TWO_FOUND = 2'b10;
     parameter RESET = 2'b11;
+    
+    wire [15:0] hist2d_count_bin_val;
+    wire [5:0] hist2d_count_i_bin_coord;
+    wire [5:0] hist2d_count_q_bin_coord;
+
+    initial begin
+        hist_state = RESET;
+    end
 
     always @(posedge clk100) begin
         case(hist_state) 
@@ -247,6 +255,7 @@ module hist2d(
                     q_bin_store <= q_bin_val;
                 end
                 else if(i_bin_found) begin
+                    $display("I FOUND");
                     hist_state <= ONE_FOUND;
                     i_bin_store <= i_bin_val;
                 end
@@ -278,6 +287,9 @@ module hist2d(
                 else begin
                     i_q_found <= 1;
                     hist_state <= RESET;
+                    bin_val <= hist2d_count_bin_val;
+                    i_bin_coord <= hist2d_count_i_bin_coord;
+                    q_bin_coord <= hist2d_count_q_bin_coord;
                 end
             end
             
@@ -292,8 +304,6 @@ module hist2d(
         
     end
     
-    assign valid_output = i_q_found;
-    
     // perform binary search along i axis
     bin_binary_search i_search(.clk100(clk100), .data_in(data_in), .value(i_val), .num_bins(i_bin_num), 
                                .bin_width(i_bin_width), .origin(i_min), .binned(i_bin_found), .current(i_bin_val));
@@ -304,8 +314,8 @@ module hist2d(
     
     // make 2d histogram in FPGA
     hist2d_count histogram(.clk100(clk100), .data_in(i_q_found), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), 
-                           .num_data_pts(num_data_pts), .data_out(valid_output), .bin_val(bin_val),
-                           .i_bin_out(i_bin_coord), .q_bin_out(q_bin_coord));
+                           .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(valid_output), 
+                           .bin_val(hist2d_count_bin_val),.i_bin_out(hist2d_count_i_bin_coord), .q_bin_out(hist2d_count_g_bin_coord));
 endmodule // hist2d
 
 // perform linear classification of data points
