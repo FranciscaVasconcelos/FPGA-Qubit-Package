@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module classify_tb(
+module hist2d_tb(
     );
 
     reg clk100 = 0;
@@ -59,7 +59,7 @@ module classify_tb(
             i_val = i_val + 1;
             q_val = q_val + 1;
             data_in = 0;
-            #100;
+            #20;
         end
     end
    

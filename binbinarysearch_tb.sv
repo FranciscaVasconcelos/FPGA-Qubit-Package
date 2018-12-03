@@ -20,46 +20,32 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module classify_tb(
+module binbinarysearch_tb(
     );
 
     reg clk100 = 0;
     
-    /*initial begin
-        forever begin
-            clk100 = ~clk100;
-            #10;
-        end
-    end*/
-    
     always #10 clk100 = ~clk100;
     
-    wire signed [31:0] i_pt_line = 32'd0;
-    wire signed [31:0] q_pt_line = 32'd2;
-    
-    wire signed [31:0] i_vec_perp = 32'd0;
-    wire signed [31:0] q_vec_perp = 32'd1;
-    
     reg data_in = 0;
-    reg signed [31:0] i_val = 32'd0; 
-    reg signed [31:0] q_val = 32'd0;
     
-    reg [6:0] counter = 7'd90;
+    reg signed [31:0] value = -32'd1;
+    reg [5:0] num_bins = 6'd20;
+    reg [15:0] bin_width = 16'd1;
     
-    wire [1:0] output_state;
-    wire valid_output;
+    reg signed [15:0] origin = 16'd0; 
+    
+    wire binned;
+    wire [5:0] bin_val;
     
     initial begin
-        i_val = -32'd3;
-        q_val = -32'd3;
         #2
         forever begin
             data_in = 1;
             #20;
-            i_val = i_val + 1;
-            q_val = q_val + 1;
             data_in = 0;
-            #100;
+            value = value + 2;
+            #400;
         end
     end
    
@@ -76,7 +62,6 @@ module classify_tb(
         else counter <= counter + 1;
     end*/
  
-    classify uut(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
-                 .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .state(output_state), .valid_output(valid_output));
+    bin_binary_search uut(.clk100(clk100), .data_in(data_in), .value(value), .num_bins(num_bins), .bin_width(bin_width), .origin(origin), .binned(binned), .current(bin_val));
 
 endmodule
