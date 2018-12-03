@@ -24,27 +24,30 @@ module integrator_tb(
     );
     
     reg clk100 = 0;
+    reg start_collect;
     
     initial begin
         forever begin
             clk100 = ~clk100;
-            #10;
+            #5;
         end
     end
     
     wire reset = 0;
-    wire start_collect = 1;
     wire [3:0] demod_freq = 4'd5; // 50 MHz
-    wire [10:0] sample_length = 11'd2000; // 20 us
+    wire [10:0] sample_length = 11'd3; // 90 ns
     wire [5:0] sample_freq = 6'd5;
     
-    reg [15:0] [4:0] data_i_rot = 0;
-    reg [15:0] [4:0] data_q_rot = 0;
+    reg [4:0] [31:0] data_i_rot = 0;
+    reg [4:0] [31:0] data_q_rot = 0;
     
     integer i;
     
     initial begin
-        #2;
+        #1;
+        start_collect = 1;
+        #10;
+        start_collect = 0;
         forever begin
             for (i = 0; i < 5; i = i + 1) begin
                 data_i_rot[i] = data_i_rot[i] + i;
@@ -54,19 +57,17 @@ module integrator_tb(
         end
     end
             
-    wire [15:0] [4:0] data_i_shift;
-    wire [15:0] [4:0] data_q_shift;
     wire iq_valid;
-    wire [31:0] i_val;
-    wire [31:0] q_val;    
+    wire [34:0] i_val_tot;
+    wire [34:0] q_val_tot;    
     
-    integrator integrator_main(
+    integrator uut(
         // inputs
         .clk100(clk100), .reset(reset), .start(start_collect),
         .sample_length(sample_length),
         .data_i_rot(data_i_rot), .data_q_rot(data_q_rot),
         // outputs
         .iq_valid(iq_valid),
-        .i_val(i_val), .q_val(q_val));
+        .i_val_tot(i_val_tot), .q_val_tot(q_val_tot));
     
 endmodule

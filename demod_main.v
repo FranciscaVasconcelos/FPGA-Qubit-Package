@@ -91,5 +91,43 @@ module demod_main(
     output [4:0] trigger0_out, trigger1_out, trigger2_out, trigger3_out
 
     );
+    
+    wire iq_valid;
+    wire [31:0] i_val;
+    wire [31:0] q_val;
+    wire [1:0] analyze_mode;
+    wire [15:0] x_bin_width;
+    wire [15:0] y_bin_width;
+    wire [4:0] x_bin_num;
+    wire [4:0] y_bin_num;
+    wire signed [15:0] x_bin_min;
+    wire signed [15:0] y_bin_min;
+    
+    
+    top_main top_module(
+        // inputs
+        .clk100(clk), .reset(rst), .config_reset(data3_in_sdi_dataStreamFCx5_S_data_0[0]),
+        // I input values
+        .data0_in_0(data0_in_sdi_dataStreamFCx5_S_data_0),
+        .data0_in_1(data0_in_sdi_dataStreamFCx5_S_data_1),
+        .data0_in_2(data0_in_sdi_dataStreamFCx5_S_data_2),
+        .data0_in_3(data0_in_sdi_dataStreamFCx5_S_data_3),
+        .data0_in_4(data0_in_sdi_dataStreamFCx5_S_data_4),
+        // Q input values
+        .data1_in_0(data1_in_sdi_dataStreamFCx5_S_data_0),
+        .data1_in_1(data1_in_sdi_dataStreamFCx5_S_data_1),
+        .data1_in_2(data1_in_sdi_dataStreamFCx5_S_data_2),
+        .data1_in_3(data1_in_sdi_dataStreamFCx5_S_data_3),
+        .data1_in_4(data1_in_sdi_dataStreamFCx5_S_data_4),
+        .trigger(trigger_in[0]),
+        
+        //outputs
+        .iq_valid(iq_valid),
+        .i_val(i_val), .q_val(q_val),
+        // configurated prameters to pass to lower modules
+        .analyze_mode(analyze_mode),
+        .x_bin_width(x_bin_width), .y_bin_width(y_bin_width),
+        .x_bin_num(x_bin_num), .y_bin_num(y_bin_num),
+        .x_bin_min(x_bin_min), .y_bin_min(y_bin_min));
 
 endmodule // demod_top
