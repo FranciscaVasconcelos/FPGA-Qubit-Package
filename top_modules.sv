@@ -132,7 +132,7 @@ module sampler(
     input [5:0] sample_freq,
     output reg signed [15:0] [4:0] data_i_shift, // packed
     output reg signed [15:0] [4:0] data_q_shift, // packed
-    output reg [13:0] [4:0] phase_vals); // packed
+    output reg [17:0] [4:0] phase_vals); // packed
 
     parameter IDLE = 0;
     parameter SAMPLE = 1;
@@ -143,8 +143,12 @@ module sampler(
     reg [2:0] skip_hold;
 
     wire [1:0] skip_hold_LUT [3:0] [3:0];
-    assign skip_hold_LUT = {{}, {}, {}, {}}
-
+    assign skip_hold_LUT = {{0, 0, 0, 0},
+    						{1, 0, 1, 0},
+    						{1, 2, 0, 1},
+    						{3, 0, 1, 2}};
+    integer i;
+    
     always @(posedge clk100) begin
         if (reset) begin
             state <= IDLE;
@@ -157,7 +161,6 @@ module sampler(
         data_i_shift <= data_i_in;
         data_q_shift <= data_q_in;
 
-        // TODO: calculate correct phase_vals
         case (state)
             IDLE: begin
                 if (start) begin // from timing, assert on same clock sample as value to sample
@@ -165,46 +168,45 @@ module sampler(
                     counter <= 1;
                     if (sample_skip < 5) begin
                         if (sample_skip == 1) begin
-                            phase_vals[0] <= 1; // phase_vals set at next clock cycle
-                            phase_vals[1] <= 1;
-                            phase_vals[2] <= 1;
-                            phase_vals[3] <= 1;
-                            phase_vals[4] <= 1;
+                            phase_vals[0] <= 0; // phase_vals set at next clock cycle
+                            phase_vals[1] <= demod_freq;
+                            phase_vals[2] <= demod_freq * 2;
+                            phase_vals[3] <= demod_freq * 3;
+                            phase_vals[4] <= demod_freq * 4;
                             skip_hold <= 0;
                         end
                         else if (sample_skip == 2) begin
-                            phase_vals[0] <= 1;
+                            phase_vals[0] <= 0;
                             phase_vals[1] <= 0;
-                            phase_vals[2] <= 1;
+                            phase_vals[2] <= demod_freq * 2;
                             phase_vals[3] <= 0;
-                            phase_vals[4] <= 1;
+                            phase_vals[4] <= demod_freq * 4;
                             skip_hold <= 0;
                         end
                         else if (sample_skip == 3) begin
-                            phase_vals[0] <= 1;
+                            phase_vals[0] <= 0;
                             phase_vals[1] <= 0;
                             phase_vals[2] <= 0;
-                            phase_vals[3] <= 1;
+                            phase_vals[3] <= demod_freq * 3;
                             phase_vals[4] <= 0;
                             skip_hold <= 1;
                         end
                         else if (sample_skip == 4) begin
-                            phase_vals[0] <= 1;
+                            phase_vals[0] <= 0;
                             phase_vals[1] <= 0;
                             phase_vals[2] <= 0;
                             phase_vals[3] <= 0;
-                            phase_vals[4] <= 1;
+                            phase_vals[4] <= demod_freq * 4;
                             skip_hold <= 3;
                         end
                     end // if (sample_skip < 5)
                     else begin // sample_skip > 5
-                        phase_vals[0] <= 1;
+                        phase_vals[0] <= 0;
                         phase_vals[1] <= 0;
                         phase_vals[2] <= 0;
                         phase_vals[3] <= 0;
                         phase_vals[4] <= 0;
                         skip_hold <= sample_skip - 5;
-                        end
                     end
                 end // if (start)
                 else // IDLE && ~start
@@ -218,16 +220,16 @@ module sampler(
                         for (i = 0; i < 5; i = i + 1) begin
                             if (skip_hold == i)
                                 phase_vals[i] <= 1;
-                            if ((skip_hold + sample_skip) == i) begin
+                            if ((skip_hold + sample_skip) == i)
                                 phase_vals[i] <= 1;
-                            if ((skip_hold + 2 * sample_skip) == i) begin
+                            if ((skip_hold + 2 * sample_skip) == i)
                                 phase_vals[i] <= 1;
-                            if ((skip_hold + 3 * sample_skip) == i) begin
+                            if ((skip_hold + 3 * sample_skip) == i)
                                 phase_vals[i] <= 1;
-                            if ((skip_hold + 4 * sample_skip) == i) begin
+                            if ((skip_hold + 4 * sample_skip) == i)
                                 phase_vals[i] <= 1;
                         end // for (i = 0; i < 5; i = i + 1)
-                        skip_hold <= sample_skip - (5 - sample_skip);
+                        skip_hold <= skip_hold_LUT[sample_skip-1][skip_hold];
                     end // if ((skip_hold < 5) && (sample_skip < 5))
 
                     else if ((skip_hold < 5) && (sample_skip >= 5)) begin
@@ -297,7 +299,7 @@ endmodule // sampler
 module multiplier(
     input clk100,
     input reset,
-    input [13:0] [4:0] phase_vals, // packed
+    input [17:0] [4:0] phase_vals, // packed
     input signed [15:0] [4:0] data_i_in,
     input signed [15:0] [4:0] data_q_in,
     output reg signed [15:0] [4:0] data_i_rot,
@@ -316,7 +318,7 @@ module multiplier(
             assign sin_cos[g] = {sin_theta[g], cos_theta[g]};
             assign phase_vals_mod[g] = phase_vals[g] % 50;
         end
-    endgenerate  
+    endgenerate
 
     wire phase_valid = 1;
     wire error;
@@ -381,8 +383,8 @@ module integrator(
     input reset,
     input start,
     input [10:0] sample_length,
-    input signed [15:0] [4:0] data_i_rot,
-    input signed [15:0] [4:0] data_q_rot,
+    input signed [15:0] data_i_rot [4:0],
+    input signed [15:0] data_q_rot [4:0],
     output reg iq_valid,
     output reg [31:0] i_val,
     output reg [31:0] q_val);
