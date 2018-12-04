@@ -38,7 +38,8 @@ module hist2d_tb(
     reg [15:0] num_data_pts = 5;
     reg stream_mode = 0;
     
-    wire valid_output;
+    wire i_q_found;
+    wire bin_found;
     wire [7:0] i_bin_coord;
     wire [7:0] q_bin_coord; 
     wire [15:0] bin_val; 
@@ -64,7 +65,7 @@ module hist2d_tb(
  
     hist2d uut(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num),
                .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .num_data_pts(num_data_pts),
-               .stream_mode(stream_mode), .i_q_found(valid_output), .i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
-               .bin_val(bin_val));
+               .stream_mode(stream_mode), .i_q_found(i_q_found), .bin_found(bin_found), .i_bin_coord(i_bin_coord), 
+               .q_bin_coord(q_bin_coord), .bin_val(bin_val));
 
 endmodule

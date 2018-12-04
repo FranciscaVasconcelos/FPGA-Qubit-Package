@@ -112,6 +112,31 @@ module bin_binary_search(
 
 endmodule
 
+module hist2d_bram (
+        //dynamic input
+        input clk100,
+        input [15:0] address,
+        input write, // 1 when writing to memory, 0 when reading from memory
+        input [15:0] write_val,
+        output reg [15:0] read_val
+    );
+    
+    // store 2d array in 1d bram, by making i LSB and q MSB
+    reg [15:0] hist2d [255*255:0]; // bin vals BRAM
+    
+    integer j;
+    
+    initial begin
+        for (j=0; j < 255*255+1; j=j+1) hist2d[j] = 16'b0; //reset array
+    end
+    
+    always @(posedge clk100) begin
+        if(write) hist2d[address] <= write_val;
+        else read_val <= hist2d[address];
+    end
+    
+endmodule
+
 // keeps running count of streaming bin vals to make 2d histogram
 module hist2d_count(
         // dynamic input
@@ -123,7 +148,8 @@ module hist2d_count(
         input [15:0] num_data_pts, // total number of points to be binned
         input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
-        output reg data_out,
+        output reg streaming_out, //denotes that is in output mode
+        output reg data_out, // denotes that data pt is being sent
         output reg [15:0] bin_val,
         output [7:0] i_bin_out, q_bin_out 
     );
@@ -148,6 +174,8 @@ module hist2d_count(
     
     initial begin 
         data_mode <= DATA_IN;
+        streaming_out <= 0;
+        data_out <= 0;
         for (j=0; j < 255*255+1; j=j+1) bin_count[j] = 16'b0; //reset array
     end
     
@@ -163,8 +191,9 @@ module hist2d_count(
                     else address <= i_bin_coord + q_bin_coord * i_bin_num;
                     data_mode <= STORE_VAL;
                 end
-                if(data_in_count == num_data_pts) begin
+                if(data_in_count >= num_data_pts) begin
                     data_mode <= DATA_OUT;
+                    streaming_out <= 1;
                     address <= 0;
                 end
             end
@@ -187,6 +216,7 @@ module hist2d_count(
                     address <= 16'b1111111000000001;
                     i_out_count <= 8'd255;
                     q_out_count <= 8'd255;
+                    streaming_out <= 0;
                     data_mode <= RESET;
                 end
             end
@@ -240,9 +270,10 @@ module hist2d(
     input [15:0] num_data_pts, // total number of points to be binned
     input stream_mode, // 1 to output bin coords as they come in, 0 to construct histogram and then stream
     
-    output reg i_q_found, // boolean - 1 indicates valid data is on output lines
-    output reg [7:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
-    output reg [7:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
+    output reg i_q_found, // boolean - 1 indicates valid data output for stream mode
+    output reg bin_found, // boolean - 1 indicated valid data output for ! stream mode
+    output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
+    output reg [7:0] q_bin_coord, // can have up to 255 bins along q direction (256th bin counts # outside range) 
     output reg [15:0] bin_val); // total number of binnable values is 65536
     
     wire i_bin_found; // boolean: 1 when bin # for i data pt is found
@@ -254,28 +285,35 @@ module hist2d(
     reg [7:0] q_bin_store;
 
     
-    reg [1:0] hist_state; // fsm to do 2d hist sequentially
-    parameter SEARCHING = 2'b00;
-    parameter ONE_FOUND = 2'b01;
-    parameter TWO_FOUND = 2'b10;
-    parameter RESET = 2'b11;
+    reg [2:0] hist_state; // fsm to do 2d hist sequentially
+    parameter SEARCHING = 3'b000;
+    parameter ONE_FOUND = 3'b001;
+    parameter TWO_FOUND = 3'b010;
+    parameter SEARCH_RESET = 3'b011;
+    parameter DATA_OUT = 3'b100;
+    parameter DATA_OUT_RESET = 3'b101;
+    
     
     wire [15:0] hist2d_count_bin_val;
     wire [7:0] hist2d_count_i_bin_coord;
     wire [7:0] hist2d_count_q_bin_coord;
     
-    // for controlling hist2d_count
-    reg store_data = 0;
+    reg store_data = 0; // for controlling hist2d_count
+    wire valid_output; // for when hist2d_count outputs data
+    wire output_mode;
 
     initial begin
-        hist_state = RESET;
+        hist_state = SEARCH_RESET;
     end
 
     always @(posedge clk100) begin
-        if(!stream_mode) begin
+        // move into data_out portion of FSM
+        if((!stream_mode) && output_mode && hist_state != DATA_OUT && hist_state != DATA_OUT_RESET) begin
+            bin_found <= 1;
             bin_val <= hist2d_count_bin_val;
             i_bin_coord <= hist2d_count_i_bin_coord;
             q_bin_coord <= hist2d_count_q_bin_coord;
+            hist_state <= DATA_OUT_RESET;
         end
         
         case(hist_state) 
@@ -312,21 +350,43 @@ module hist2d(
                     q_bin_coord <= q_bin_store;
                     i_q_found <= 1;
                     bin_val <= 0;
-                    hist_state <= RESET;
+                    hist_state <= SEARCH_RESET;
                 end
                 else begin
+                    i_bin_coord <= i_bin_store;
+                    q_bin_coord <= q_bin_store;
                     store_data <= 1;
-                    hist_state <= RESET;
+                    hist_state <= SEARCH_RESET;
                 end
             end
             
-            RESET: begin
+            SEARCH_RESET: begin
                 i_bin_coord <= 0;
                 q_bin_coord <= 0;
-                i_q_found <= 0;
                 store_data <= 0;
                 bin_val <= 0;
+                i_q_found <= 0;
+                
                 if(data_in) hist_state <= SEARCHING;
+            end
+            
+            DATA_OUT: begin
+                if(valid_output) begin
+                    bin_found <= 1;
+                    bin_val <= hist2d_count_bin_val;
+                    i_bin_coord <= hist2d_count_i_bin_coord;
+                    q_bin_coord <= hist2d_count_q_bin_coord;
+                    hist_state <= DATA_OUT_RESET;
+                end
+            end
+            
+            DATA_OUT_RESET: begin
+                i_bin_coord <= 0;
+                q_bin_coord <= 0;
+                bin_val <= 0;
+                bin_found <= 0;
+                if(output_mode) hist_state <= DATA_OUT;
+                else hist_state <= SEARCH_RESET;
             end
         endcase
         
@@ -343,7 +403,8 @@ module hist2d(
     // make 2d histogram in FPGA
     hist2d_count histogram(.clk100(clk100), .data_in(store_data), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), 
                            .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(valid_output), 
-                           .bin_val(hist2d_count_bin_val),.i_bin_out(hist2d_count_i_bin_coord), .q_bin_out(hist2d_count_g_bin_coord));
+                           .streaming_out(output_mode),.bin_val(hist2d_count_bin_val),.i_bin_out(hist2d_count_i_bin_coord), 
+                           .q_bin_out(hist2d_count_g_bin_coord));
 endmodule // hist2d
 
 // perform linear classification of data points
