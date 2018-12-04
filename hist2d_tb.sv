@@ -32,15 +32,15 @@ module hist2d_tb(
     reg data_in;
     reg signed [31:0] i_val, q_val;
 
-    reg [5:0] i_bin_num = 10, q_bin_num = 10;
+    reg [7:0] i_bin_num = 10, q_bin_num = 10;
     reg [15:0] i_bin_width = 1, q_bin_width = 1;
     reg signed [15:0] i_min = 0, q_min = 0;
-    reg [15:0] num_data_pts = 10;
-    reg stream_mode = 1;
+    reg [15:0] num_data_pts = 5;
+    reg stream_mode = 0;
     
     wire valid_output;
-    wire [5:0] i_bin_coord;
-    wire [5:0] q_bin_coord; 
+    wire [7:0] i_bin_coord;
+    wire [7:0] q_bin_coord; 
     wire [15:0] bin_val; 
     
     reg [15:0] count = 0;
@@ -57,7 +57,7 @@ module hist2d_tb(
             q_val = q_val + 1;
             data_in = 0;
             count = count + 1;   
-            #400;
+            #300;
         end
     end
    

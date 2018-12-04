@@ -28,29 +28,39 @@ module hist2d_count_tb(
     always #10 clk100 = ~clk100;
     
     reg data_in;
-    reg [5:0] i_bin_coord;
-    reg [5:0] q_bin_coord;
-    reg [15:0] num_data_pts = 10;
-    reg [11:0] i_bin_num = 10;
-    reg [11:0] q_bin_num = 10;
+    reg [7:0] i_bin_coord;
+    reg [7:0] q_bin_coord;
+    reg [15:0] num_data_pts = 16'd10;
+    reg [11:0] i_bin_num = 12'd10;
+    reg [11:0] q_bin_num = 12'd10;
+    
+    reg [15:0] count = 0;
     
     wire data_out;
     wire [15:0] bin_val;
-    wire [5:0] i_bin_out;
-    wire [5:0] q_bin_out;
+    wire [7:0] i_bin_out;
+    wire [7:0] q_bin_out;
     
     initial begin
-        i_bin_coord = 3;
-        q_bin_coord = 2;
+        i_bin_coord = 255;
+        q_bin_coord = 255;
         #2
-        while(i_bin_coord < num_data_pts) begin
+        while(count < num_data_pts) begin
             data_in = 1;
             #20;
             //i_bin_coord = i_bin_coord + 1;
             //q_bin_coord = q_bin_coord + 1;
             data_in = 0;
             #40;
+            count=count+1;
         end
+        //i_bin_coord = 8'd255;
+        //q_bin_coord = 8'd255;
+        //data_in = 1;
+        //#20;
+        //data_in = 0;
+        //#40;
+        //count=count+1;
     end
  
     hist2d_count uut(.clk100(clk100), .data_in(data_in), .i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord), 

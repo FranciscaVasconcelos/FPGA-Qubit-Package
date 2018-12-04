@@ -7,20 +7,20 @@ module bin_binary_search(
     input data_in,
     input signed [31:0] value,
     // static input
-    input [5:0] num_bins, // value must be in range 1-63 
+    input [7:0] num_bins, // value must be in range 1-255
     input [15:0] bin_width,    
     input signed [15:0] origin,
     
     output reg binned, // boolean that outputs 1 when value has been binned
-    output reg [5:0] current); // contains value bin when binned=1 (in range 0 to num_bins, 63 if out of range)
+    output reg [7:0] current); // contains value bin when binned=1 (in range 0 to num_bins, 63 if out of range)
     
     reg signed [31:0] val; // for storing value when data_in = 1;
     
-    reg [5:0] max; // max possible bin value
-    reg [5:0] min; // max possible bin value
+    reg [7:0] max; // max possible bin value
+    reg [7:0] min; // max possible bin value
     reg signed [31:0] bin_value; // current bin value we are comparing to
     
-    wire signed [6:0] current_signed;
+    wire signed [8:0] current_signed;
     wire signed [16:0] bin_width_signed;
     
     assign current_signed = current; // convert current to signed 
@@ -53,7 +53,7 @@ module bin_binary_search(
                 else if(val < bin_value) begin
                     // value outside of binning range
                     if(current == min) begin 
-                       current <= 6'b111111;
+                       current <= 8'b1111_1111;
                        search_state <= OUTPUT_RESULT;
                     end
                     // boundaries have converged to bin
@@ -77,7 +77,7 @@ module bin_binary_search(
                     end
                     // value outside of range
                     else if (current == max-1) begin 
-                        current <= 6'b111111;
+                        current <= 8'b1111_1111;
                         search_state <= OUTPUT_RESULT;
                     end
                     // continue search
@@ -117,37 +117,38 @@ module hist2d_count(
         // dynamic input
         input clk100,
         input data_in,
-        input [5:0] i_bin_coord, q_bin_coord,
+        input [7:0] i_bin_coord, q_bin_coord,
 
         // static input
         input [15:0] num_data_pts, // total number of points to be binned
-        input [11:0] i_bin_num, q_bin_num, // number of bins along axis
+        input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
         output reg data_out,
         output reg [15:0] bin_val,
-        output [5:0] i_bin_out, q_bin_out 
+        output [7:0] i_bin_out, q_bin_out 
     );
     
     // store 2d array in 1d bram, by making i LSB and q MSB
-    reg [15:0] bin_count [4095:0]; // bin vals BRAM
+    reg [15:0] bin_count [255*255:0]; // bin vals BRAM
+    
+    reg [15:0] address = 0; // for storing the current memory access address
     
     reg [15:0] data_in_count = 0; 
-    reg [5:0] i_out_count = 0, q_out_count = 0;
+    reg [7:0] i_out_count = 0, q_out_count = 0;
     
-    reg [1:0] data_mode; // use fsm to keep track of mode
-    parameter DATA_IN = 2'b00;
-    parameter DATA_OUT = 2'b01;
-    parameter HOLD = 2'b10;
+    reg [2:0] data_mode; // use fsm to keep track of mode
+    parameter DATA_IN = 3'b000;
+    parameter DATA_OUT = 3'b001;
+    parameter SEND_OUT = 3'b010;
+    parameter STORE_VAL = 3'b011;
+    parameter CALC_ADDR = 3'b100;
+    parameter RESET = 3'b101;
     
-    integer i,j;
+    integer j;
     
     initial begin 
         data_mode <= DATA_IN;
-        for (j=0; j < q_bin_num; j=j+1) begin
-            for (i=0; i < i_bin_num; i=i+1) begin
-                bin_count[i+j*(i_bin_num)] = 16'b0; //reset array
-            end
-        end
+        for (j=0; j < 255*255+1; j=j+1) bin_count[j] = 16'b0; //reset array
     end
     
     always @(posedge clk100) begin
@@ -156,42 +157,64 @@ module hist2d_count(
         
             DATA_IN: begin
                 if(data_in) begin
-                    bin_count[i_bin_coord+q_bin_coord*(i_bin_num)] <= bin_count[i_bin_coord+q_bin_coord*(i_bin_num)] + 1;
-                    data_in_count <= data_in_count + 1;
+                    // overflow data
+                    if(i_bin_coord == 255 && q_bin_coord == 255) address <= 255*255;
+                    // normal data
+                    else address <= i_bin_coord + q_bin_coord * i_bin_num;
+                    data_mode <= STORE_VAL;
                 end
-                if(data_in_count == num_data_pts) data_mode <= DATA_OUT;
+                if(data_in_count == num_data_pts) begin
+                    data_mode <= DATA_OUT;
+                    address <= 0;
+                end
+            end
+            
+            STORE_VAL: begin
+                bin_count[address] <= bin_count[address] + 1;
+                data_in_count <= data_in_count + 1;
+                data_mode <= DATA_IN;
             end
             
             DATA_OUT: begin
-                $display("%d,%d,%d,%d",i_bin_num,q_bin_num,i_out_count + q_out_count*(i_bin_num),i_bin_num*q_bin_num);
-                if(i_out_count + q_out_count*(i_bin_num) < i_bin_num*q_bin_num) begin 
+                if(address < i_bin_num*q_bin_num) begin // output value
                     data_out <= 1;
-                    bin_val <= bin_count[i_out_count + q_out_count*(i_bin_num)];
-                    data_mode <= HOLD;
+                    bin_val <= bin_count[address];
+                    data_mode <= SEND_OUT;
                 end
-                else begin
-                    for (j=0; j < q_bin_num; j=j+1) begin
-                        for (i=0; i < i_bin_num; i=i+1) begin
-                            bin_count[i+j*(i_bin_num)] = 16'b0; //reset array
-                        end
-                    end
-                    data_mode <= DATA_IN;
-                    i_out_count <= 0;
-                    q_out_count <= 0;
-                    bin_val <= 0; 
-                    data_out <= 0;
-                    data_in_count <= 0;
+                else begin // end of values, output out_of_bounds bin, reset
+                    data_out <= 1;
+                    bin_val <= bin_count[16'b1111111000000001]; // over_flow_bin
+                    address <= 16'b1111111000000001;
+                    i_out_count <= 8'd255;
+                    q_out_count <= 8'd255;
+                    data_mode <= RESET;
                 end
             end
             
-            HOLD: begin
+            SEND_OUT: begin
                 data_out <= 0;
+                // update i and q counts
                 if(i_out_count < i_bin_num-1) i_out_count <= i_out_count+1;
                 else begin 
                     q_out_count <= q_out_count+1;
                     i_out_count <= 0;
                 end
+                data_mode <= CALC_ADDR;
+            end
+            
+            CALC_ADDR: begin
+                address <= i_out_count + q_out_count*i_bin_num;
                 data_mode <= DATA_OUT;
+            end
+            
+            RESET: begin
+                for (j=0; j < 255*255+1; j=j+1) bin_count[j] = 16'b0; //reset array
+                i_out_count <= 0;
+                q_out_count <= 0;
+                bin_val <= 0; 
+                data_out <= 0;
+                data_in_count <= 0;
+                data_mode <= DATA_IN;
             end
             
             default: data_mode <= DATA_IN;
@@ -211,26 +234,25 @@ module hist2d(
     input signed [31:0] i_val, q_val,
     
     // static input (from config)
-    input [5:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
+    input [7:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
     input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
     input signed [15:0] i_min, q_min, // bin origin
     input [15:0] num_data_pts, // total number of points to be binned
     input stream_mode, // 1 to output bin coords as they come in, 0 to construct histogram and then stream
     
     output reg i_q_found, // boolean - 1 indicates valid data is on output lines
-    output reg [5:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
-    output reg [5:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
+    output reg [7:0] i_bin_coord, // can have up to 63 bins along i direction (64th bin counts # outside range) 
+    output reg [7:0] q_bin_coord, // can have up to 63 bins along q direction (64th bin counts # outside range) 
     output reg [15:0] bin_val); // total number of binnable values is 65536
     
     wire i_bin_found; // boolean: 1 when bin # for i data pt is found
-    wire [5:0] i_bin_val;
-    reg [5:0] i_bin_store; 
+    wire [7:0] i_bin_val;
+    reg [7:0] i_bin_store; 
     
     wire q_bin_found; // boolean: 1 when bin # for q data pt is found
-    wire [5:0] q_bin_val;
-    reg [5:0] q_bin_store;
-    
-    reg i_q_found = 0; // boolean: indicates when both i and q vals found
+    wire [7:0] q_bin_val;
+    reg [7:0] q_bin_store;
+
     
     reg [1:0] hist_state; // fsm to do 2d hist sequentially
     parameter SEARCHING = 2'b00;
@@ -239,14 +261,23 @@ module hist2d(
     parameter RESET = 2'b11;
     
     wire [15:0] hist2d_count_bin_val;
-    wire [5:0] hist2d_count_i_bin_coord;
-    wire [5:0] hist2d_count_q_bin_coord;
+    wire [7:0] hist2d_count_i_bin_coord;
+    wire [7:0] hist2d_count_q_bin_coord;
+    
+    // for controlling hist2d_count
+    reg store_data = 0;
 
     initial begin
         hist_state = RESET;
     end
 
     always @(posedge clk100) begin
+        if(!stream_mode) begin
+            bin_val <= hist2d_count_bin_val;
+            i_bin_coord <= hist2d_count_i_bin_coord;
+            q_bin_coord <= hist2d_count_q_bin_coord;
+        end
+        
         case(hist_state) 
             SEARCHING: begin
                 if(i_bin_found && q_bin_found) begin
@@ -255,7 +286,6 @@ module hist2d(
                     q_bin_store <= q_bin_val;
                 end
                 else if(i_bin_found) begin
-                    $display("I FOUND");
                     hist_state <= ONE_FOUND;
                     i_bin_store <= i_bin_val;
                 end
@@ -285,11 +315,8 @@ module hist2d(
                     hist_state <= RESET;
                 end
                 else begin
-                    i_q_found <= 1;
+                    store_data <= 1;
                     hist_state <= RESET;
-                    bin_val <= hist2d_count_bin_val;
-                    i_bin_coord <= hist2d_count_i_bin_coord;
-                    q_bin_coord <= hist2d_count_q_bin_coord;
                 end
             end
             
@@ -297,6 +324,7 @@ module hist2d(
                 i_bin_coord <= 0;
                 q_bin_coord <= 0;
                 i_q_found <= 0;
+                store_data <= 0;
                 bin_val <= 0;
                 if(data_in) hist_state <= SEARCHING;
             end
@@ -313,7 +341,7 @@ module hist2d(
                                .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
     
     // make 2d histogram in FPGA
-    hist2d_count histogram(.clk100(clk100), .data_in(i_q_found), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), 
+    hist2d_count histogram(.clk100(clk100), .data_in(store_data), .i_bin_coord(i_bin_store), .q_bin_coord(q_bin_store), 
                            .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(valid_output), 
                            .bin_val(hist2d_count_bin_val),.i_bin_out(hist2d_count_i_bin_coord), .q_bin_out(hist2d_count_g_bin_coord));
 endmodule // hist2d
