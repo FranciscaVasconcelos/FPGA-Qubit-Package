@@ -301,16 +301,16 @@ module multiplier(
     output reg signed [4:0] [31:0] data_q_rot);
 
     // create outputs for DDS compiler
-    wire signed [4:0] [15:0] sin_theta = 0;
-    wire signed [4:0] [15:0] cos_theta = 0;
-    wire signed [4:0] [31:0] sin_cos;
+    wire signed [4:0] [25:0] sin_theta;
+    wire signed [4:0] [25:0] cos_theta;
+    wire signed [4:0] [63:0] sin_cos;
     
     // set up our concatenated sin_cos bus
-    // and the bounded phase values
     genvar g;
     generate
         for (g = 0; g < 5; g = g + 1) begin
-            assign sin_cos[g] = {sin_theta[g], cos_theta[g]};
+            assign sin_theta[g] = sin_cos[g][57:32];
+            assign cos_theta[g] = sin_cos[g][25:0];
         end
     endgenerate
 
@@ -325,23 +325,23 @@ module multiplier(
     // input phase: 8 bit
     // output {sine, cosine}: 32 bit
     // latency: 1
-    dds_compiler_0 sin_cos0(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    dds_compiler_0 sincos0(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[0]),
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[0]),
         .event_phase_in_invalid(error));
-    dds_compiler_0 sin_cos1(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    dds_compiler_0 sincos1(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[1]),
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[1]),
         .event_phase_in_invalid(error));
-    dds_compiler_0 sin_cos2(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    dds_compiler_0 sincos2(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[2]),
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[2]),
         .event_phase_in_invalid(error));
-    dds_compiler_0 sin_cos3(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    dds_compiler_0 sincos3(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[3]),
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[3]),
         .event_phase_in_invalid(error));
-    dds_compiler_0 sin_cos4(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+    dds_compiler_0 sincos4(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[4]),
         .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[4]),
         .event_phase_in_invalid(error));
@@ -416,7 +416,7 @@ module integrator(
             end
             
             DELAY: begin // account of latency from previous modules of 2
-                state <= DELAY;
+                state <= INTEGRATE;
             end
 
             INTEGRATE: begin
