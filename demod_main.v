@@ -56,36 +56,36 @@ module demod_main(
     input data3_in_sdi_dataStreamFCx5_S_valid,
 
     // Output 0
-    output [15:0] data0_out_sdi_dataStreamFCx5_S_data_0,
-    output [15:0] data0_out_sdi_dataStreamFCx5_S_data_1,
-    output [15:0] data0_out_sdi_dataStreamFCx5_S_data_2,
-    output [15:0] data0_out_sdi_dataStreamFCx5_S_data_3,
-    output [15:0] data0_out_sdi_dataStreamFCx5_S_data_4,
-    output data0_out_sdi_dataStreamFCx5_S_valid,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_4,
+    output data0_out_sdi_dataStreamFCx5_M_valid,
 
     // Output 1
-    output [15:0] data1_out_sdi_dataStreamFCx5_S_data_0,
-    output [15:0] data1_out_sdi_dataStreamFCx5_S_data_1,
-    output [15:0] data1_out_sdi_dataStreamFCx5_S_data_2,
-    output [15:0] data1_out_sdi_dataStreamFCx5_S_data_3,
-    output [15:0] data1_out_sdi_dataStreamFCx5_S_data_4,
-    output data1_out_sdi_dataStreamFCx5_S_valid,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_4,
+    output data1_out_sdi_dataStreamFCx5_M_valid,
 
     // Output 2
-    output [15:0] data2_out_sdi_dataStreamFCx5_S_data_0,
-    output [15:0] data2_out_sdi_dataStreamFCx5_S_data_1,
-    output [15:0] data2_out_sdi_dataStreamFCx5_S_data_2,
-    output [15:0] data2_out_sdi_dataStreamFCx5_S_data_3,
-    output [15:0] data2_out_sdi_dataStreamFCx5_S_data_4,
-    output data2_out_sdi_dataStreamFCx5_S_valid,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_4,
+    output data2_out_sdi_dataStreamFCx5_M_valid,
 
     // Output 3
-    output [15:0] data3_out_sdi_dataStreamFCx5_S_data_0,
-    output [15:0] data3_out_sdi_dataStreamFCx5_S_data_1,
-    output [15:0] data3_out_sdi_dataStreamFCx5_S_data_2,
-    output [15:0] data3_out_sdi_dataStreamFCx5_S_data_3,
-    output [15:0] data3_out_sdi_dataStreamFCx5_S_data_4,
-    output data3_out_sdi_dataStreamFCx5_S_valid,
+    output [15:0] data3_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data3_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data3_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data3_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data3_out_sdi_dataStreamFCx5_M_data_4,
+    output data3_out_sdi_dataStreamFCx5_M_valid,
 
     // Triggers out
     output [4:0] trigger0_out, trigger1_out, trigger2_out, trigger3_out

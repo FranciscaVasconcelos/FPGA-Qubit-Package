@@ -289,6 +289,10 @@ module hist2d_bin_out_stream(
             
             CALC_ADDR: begin
                 mem_address <= i_out_count + q_out_count*i_bin_num;
+                data_mode <= UPDATE;
+            end
+            
+            UPDATE: begin
                 data_mode <= DATA_OUT;
             end
             
@@ -830,6 +834,7 @@ module classify_master(
         // vector from origin with slope perpendicular to line, pts in direction of excited state
         input signed [31:0] i_vec_perp, q_vec_perp,
         
+        output reg data_out_trigger,
         output reg [127:0] fpga_output
     );
     
@@ -870,6 +875,7 @@ module classify_master(
             
                 COUNT: begin
                     reset <= 0;
+                    data_output_trigger <= 0;
                     if(data_pt_count < num_data_pts-1) begin
                         fpga_output <= {16'b0, data_pt_count, excited_count, ground_count, line_count};
                         reset <= 0;
@@ -879,12 +885,14 @@ module classify_master(
                 end
                 
                 OUTPUT_FINAL: begin
-                    fpga_output <= {16'd1, data_pt_count, excited_count, ground_count, line_count};
+                    data_output_trigger <= 1;
+                    fpga_output <= {16'd0, data_pt_count, excited_count, ground_count, line_count};
                     count_mode <= RESET;
                 end
                 
                 RESET: begin
                     reset <= 1;
+                    data_output_trigger <= 0;
                     data_pt_count <= 0;
                     fpga_output <= 0;
                     count_mode <= COUNT;
@@ -927,6 +935,7 @@ module analyze_fsm(
     input signed [31:0] i_pt_line, q_pt_line, 
 
     // output data
+    output reg data_trigger,
     output reg [127:0] output_channels);
 
     wire [1:0] state = analyze_mode;
@@ -938,7 +947,9 @@ module analyze_fsm(
 
     // for reading output of different modules
     wire [127:0] classify_output;
+    wire classify_trigger;
     wire [127:0] hist2d_output;
+    wire hist2d_trigger;
 
     // analysis FSM
     always @(posedge clk100) begin
@@ -946,14 +957,17 @@ module analyze_fsm(
 
             DATA_DUMP_MODE: begin
                 if (data_in) output_channels <= {64'd0, i_val, q_val};
+                data_trigger <= data_in;
             end 
 
             CLASSIFY_MODE: begin
                 output_channels <= classify_output;
+                output_trigger <= classify_trigger;
             end 
 
             HIST2D_MODE: begin
                 output_channels <= hist2d_output;
+                output_trigger <= hist2d_trigger;
             end
 
             default: output_channels <= 64'b0; 
@@ -964,7 +978,8 @@ module analyze_fsm(
     // linear classification control module
     classify_master lin_class(.clk100(clk100), .num_data_pts(num_data_pts), .data_in(data_in), .i_val(i_val), 
                               .q_val(q_val), .stream_mode(output_mode), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
-                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output));
+                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output), 
+                              .data_output_trigger(classify_trigger));
     
     // 2D histogram control module
     hist2d_master hist2d(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .output_mode(output_mode),
