@@ -152,22 +152,30 @@ module hist2d_store_bin(
         input clk100,
         input data_in,
         input [7:0] i_bin_coord, q_bin_coord,
+        
+        // for accessing histogram memory
+        input [15:0] mem_read_val;
+        output [15:0] mem_address; 
+        output mem_write;
+        output mem_reset;
+        output [15:0] mem_write_val;
 
         // static input
         input [7:0] i_bin_num, q_bin_num // number of bins along axis
     );
     
-    // for accessing histogram memory
-    reg [15:0] mem_address = 0; 
-    reg mem_write;
-    reg mem_reset;
-    reg [15:0] mem_write_val;
-    wire [15:0] mem_read_val;
-    
     reg data_mode; // use fsm to keep track of mode
     parameter DATA_IN = 1;
     parameter STORE_VAL = 0;
-
+    
+    initial begin
+        data_mode = DATA_IN;
+        mem_read_val = 0;
+        mem_address = 0; 
+        omem_write = 0;
+        mem_reset = 0;
+        mem_write_val = 0;
+    end
     
     always @(posedge clk100) begin
         case(data_mode) 
@@ -175,9 +183,9 @@ module hist2d_store_bin(
                 mem_write <= 0;
                 if(data_in) begin
                     // overflow data
-                    if(i_bin_coord == 255 && q_bin_coord == 255) mem_address <= 255*255;
+                    //if(i_bin_coord == 255 && q_bin_coord == 255) mem_address <= 255*255;
                     // normal data
-                    else mem_address <= i_bin_coord + q_bin_coord * i_bin_num;
+                    mem_address <= i_bin_coord + q_bin_coord * i_bin_num;
                     data_mode <= STORE_VAL;
                 end
             end
@@ -185,14 +193,13 @@ module hist2d_store_bin(
             STORE_VAL: begin
                 mem_write <= 1;
                 mem_write_val <= mem_read_val + 1;
-                data_in_count <= data_in_count + 1;
                 data_mode <= DATA_IN;
             end
         endcase  
     end
     
     // write values to memory
-    hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val());
+    //hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val());
 
 endmodule
 
@@ -206,18 +213,18 @@ module hist2d_bin_out_stream(
         input [15:0] num_data_pts, // total number of points to be binned
         input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
+        // block ram ports
+        input [15:0] mem_read_val;
+        output [15:0] mem_address;  
+        output mem_write;           
+        output mem_reset;           
+        output [15:0] mem_write_val;
+        
         output reg data_out, // denotes that data pt is being sent
         output reg [15:0] bin_val,
         output [7:0] i_bin_out, q_bin_out 
     );
-    
-    // for accessing histogram memory
-    reg [15:0] mem_address = 0; 
-    reg mem_write;
-    reg mem_reset;
-    reg [15:0] mem_write_val;
-    wire [15:0] mem_read_val;
-    
+
     reg [7:0] i_out_count = 0, q_out_count = 0;
     
     reg [2:0] data_mode; // use fsm to keep track of mode
@@ -230,9 +237,12 @@ module hist2d_bin_out_stream(
     integer j;
     
     initial begin 
-        data_mode <= RESET;
-        streaming_out <= 0;
-        data_out <= 0;
+        data_mode = RESET;
+        data_out = 0;
+        mem_address = 0;  
+        mem_write = 0;           
+        mem_reset = 0;           
+        mem_write_val = 0;
     end
     
     always @(posedge clk100) begin
@@ -257,6 +267,7 @@ module hist2d_bin_out_stream(
                 bin_val <= mem_read_val; // over_flow_bin
                 i_out_count <= 8'd255;
                 q_out_count <= 8'd255;
+                data_finished <= 1;
                 data_mode <= RESET;
             end
             
@@ -281,7 +292,6 @@ module hist2d_bin_out_stream(
                 q_out_count <= 0;
                 bin_val <= 0; 
                 data_out <= 0;
-                data_in_count <= 0;
                 if(start_data_out) data_mode <= DATA_OUT; 
             end
             
@@ -293,7 +303,7 @@ module hist2d_bin_out_stream(
     assign i_bin_out = i_out_count;
     assign q_bin_out = q_out_count;
     
-    hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val());
+    //hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val());
 
 endmodule
 
@@ -307,17 +317,17 @@ module hist2d_bin_out_multiple(
         input [15:0] num_data_pts, // total number of points to be binned
         input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
+        // for accessing histogram memory
+        input [127:0] mem_extended_read_val;
+        input [15:0] mem_read_val;
+        output [15:0] mem_address; 
+        output mem_write;
+        output mem_reset;
+        output [15:0] mem_write_val;
+
         output reg data_out, // denotes that data pt is being sent
         output reg [79:0] bins_out
     );
-    
-    // for accessing histogram memory
-    reg [15:0] mem_address = 0; 
-    reg mem_write;
-    reg mem_reset;
-    reg [15:0] mem_write_val;
-    wire [15:0] mem_read_val;
-    wire [127:0] extended_read_val;
     
     reg [7:0] i_out_count = 0, q_out_count = 0;
     
@@ -327,9 +337,12 @@ module hist2d_bin_out_multiple(
     parameter RESET = 2'b10;
     
     initial begin 
-        data_mode <= RESET;
-        streaming_out <= 0;
-        data_out <= 0;
+        data_mode = RESET;
+        data_out = 0;
+        mem_address = 0;  
+        mem_write = 0;           
+        mem_reset = 0;           
+        mem_write_val = 0;
     end
     
     always @(posedge clk100) begin
@@ -355,8 +368,7 @@ module hist2d_bin_out_multiple(
             
             RESET: begin
                 i_out_count <= 0;
-                q_out_count <= 0;
-                bin_val <= 0; 
+                q_out_count <= 0; 
                 data_out <= 0;
                 if(start_data_out) data_mode <= DATA_OUT; 
             end
@@ -366,7 +378,7 @@ module hist2d_bin_out_multiple(
         endcase  
     end 
     
-    hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val(extended_read_val));
+    //hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val(extended_read_val));
     
 endmodule
 
@@ -382,6 +394,13 @@ module hist2d_pt_to_bin(
         input [7:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
         input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
         input signed [15:0] i_min, q_min, // bin origin
+        
+        // for accessing histogram memory
+        input [15:0] mem_read_val;
+        output reg [15:0] mem_address; 
+        output reg mem_write;
+        output reg mem_reset;
+        output reg [15:0] mem_write_val;
         
         output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
         output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
@@ -401,6 +420,8 @@ module hist2d_pt_to_bin(
     parameter ONE_FOUND = 2'b01;
     parameter TWO_FOUND = 2'b10;
     parameter SEARCH_RESET = 2'b11;
+    
+    reg store_data = 0;
 
     initial begin
         hist_state = SEARCH_RESET;
@@ -465,7 +486,8 @@ module hist2d_pt_to_bin(
     
     // save values to histogram memory                           
     hist2d_store_bin(.clk100(clk100),.data_in(store_data),.i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
-                     .i_bin_num(i_bin_num), .q_bin_num(q_bin_num));
+                     .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .mem_read_val(mem_read_val), .mem_address(mem_address),
+                     .mem_write(mem_write), .mem_reset(mem_reset), .mem_write_val(mem_write_val));
     
 endmodule // hist2d
 
@@ -492,39 +514,171 @@ module hist2d_master(
     wire i_q_found; // boolean - 1 indicated valid data output for ! stream mode
     wire [7:0] i_bin_coord; // can have up to 255 bins along i direction (256th bin counts # outside range) 
     wire [7:0] q_bin_coord; // can have up to 255 bins along q direction (256th bin counts # outside range)
+    reg [15:0] pt_bin_mem_read_val;
+    wire [15:0] pt_bin_mem_address; 
+    wire pt_bin_mem_write;
+    wire pt_bin_mem_reset;
+    wire [15:0] pt_bin_mem_write_val;
     
     // hist2d_bin_out_multiple
     wire multi_data_out;
     wire [79:0] multi_bins_out;
+    reg [127:0] multi_mem_extended_read_val;
+    reg [15:0] multi_mem_read_val;
+    wire [15:0] multi_mem_address; 
+    wire multi_mem_write;
+    wire multi_mem_reset;
+    wire [15:0] multi_mem_write_val;
     
     // hist2d_bin_out_stream
     wire stream_data_out;
     wire [15:0] stream_bin_val;
     wire [7:0] stream_i_bin_out;
     wire [7:0] stream_q_bin_out;
+    reg [15:0] pt_bin_mem_read_val;
+    wire [15:0] pt_bin_mem_address; 
+    wire pt_bin_mem_write;
+    wire pt_bin_mem_reset;
+    wire [15:0] pt_bin_mem_write_val;
+    
+    // for accessing histogram memory
+    wire [127:0] mem_extended_read_val;
+    wire [15:0] mem_read_val;
+    reg [15:0] mem_address; 
+    reg mem_write;
+    reg mem_reset;
+    reg [15:0] mem_write_val;
+    
+    // stream output FSM
+    reg stream_state = 0;
+    reg multi_state = 0;
+    parameter PT_TO_BIN = 0;
+    parameter STREAM_OUT = 1;
+    parameter MULTI_OUT = 1;
+    
     
     always @(posedge clk100) begin
+        // memory access controls
+        
         // stream output mode
         if(output_mode) begin
             data_out <= stream_data_out;
             fpga_output <= {80'd0, stream_bin_val, 8'd0, stream_i_bin_out, 8'd0, stream_q_bin_out};
+        
+            case(stream_state) begin
+                PT_TO_BIN: begin
+                    if(i_q_found) begin
+                        mem_address <= stream_mem_address; 
+                        mem_write <= stream_mem_write;
+                        mem_reset <= stream_mem_reset;
+                        mem_write_val <= stream_mem_write_val;
+                        stream_mem_read_val <= mem_read_val;
+                        
+                        stream_state <= STREAM_OUT;
+                        start_data_out <= 1;
+                    end
+                    else begin
+                        mem_address <= pt_bin_mem_address; 
+                        mem_write <= pt_bin_mem_write;
+                        mem_reset <= pt_bin_mem_reset;
+                        mem_write_val <= pt_bin_mem_write_val;
+                        pt_bin_mem_read_val <= mem_read_val;
+                    end
+                end
+                
+                STREAM_OUT: begin
+
+                    if(stream_i_bin_out == 8'd255 && stream_q_bin_out == 8'd255) begin
+                        mem_address <= pt_bin_mem_address; 
+                        mem_write <= pt_bin_mem_write;
+                        mem_reset <= pt_bin_stream_mem_reset;
+                        mem_write_val <= pt_bin_mem_write_val;
+                        pt_bin_read_val <= mem_read_val;
+                        
+                        stream_state <= PT_TO_BIN;
+                    end
+                    else begin
+                        start_data_out <= 0;
+                        mem_address <= stream_mem_address; 
+                        mem_write <= stream_mem_write;
+                        mem_reset <= stream_mem_reset;
+                        mem_write_val <= stream_mem_write_val;
+                        stream_mem_read_val <= mem_read_val;
+                    end
+                
+                end
+            end
+            
         end
         // multi output mode
         else begin
             data_out <= multi_data_out;
+            
+            case(multi_state) begin
+                PT_TO_BIN: begin
+                    if(i_q_found) begin
+                        mem_address <= multi_mem_address; 
+                        mem_write <= multi_mem_write;
+                        mem_reset <= multi_mem_reset;
+                        mem_write_val <= multi_mem_write_val;
+                        multi_mem_read_val <= mem_read_val;
+                        
+                        multi_state <= MULTI_OUT;
+                        start_data_out <= 1;
+                    end
+                    else begin
+                        mem_address <= pt_bin_mem_address; 
+                        mem_write <= pt_bin_mem_write;
+                        mem_reset <= pt_bin_mem_reset;
+                        mem_write_val <= pt_bin_mem_write_val;
+                        pt_bin_mem_read_val <= mem_read_val; 
+                    end
+                end
+                
+                MULTI_OUT: begin
+                    if(mem_address == 255*255) begin
+                        mem_address <= pt_bin_mem_address; 
+                        mem_write <= pt_bin_mem_write;
+                        mem_reset <= pt_bin_stream_mem_reset;
+                        mem_write_val <= pt_bin_mem_write_val;
+                        pt_bin_read_val <= mem_read_val;
+                        
+                        multi_state <= PT_TO_BIN;
+                    end
+                    else begin 
+                        start_data_out <= 0;
+                        mem_address <= multi_mem_address; 
+                        mem_write <= multi_mem_write;
+                        mem_reset <= multi_mem_reset;
+                        mem_write_val <= multi_mem_write_val;
+                        multi_mem_read_val <= mem_read_val;
+                        multi_mem_extended_read_val <= muem_extended_read_val;
+                    end
+                end
+                
+            end
         end
     end
     
     hist2d_pt_to_bin conv(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), 
                           .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), 
-                          .q_min(q_min), .i_q_found(i_q_found), .i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord));
+                          .q_min(q_min), .i_q_found(i_q_found), .i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
+                          .mem_read_val(pt_bin_mem_read_val), .mem_address(pt_bin_mem_address), .mem_write(pt_bin_mem_write), 
+                          .mem_reset(pt_bin_mem_reset), .mem_write_val(pt_bin_mem_write_val));
                      
     hist2d_bin_out_multiple multi(.clk100(clk100), .start_data_out(start_data_out), .num_data_pts(num_data_pts), 
-                                  .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(multi_data_out), .bins_out(multi_bins_out));
+                                  .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(multi_data_out), .bins_out(multi_bins_out),
+                                  .mem_read_val(multi_mem_read_val), .mem_address(multi_mem_address), .mem_write(multi_mem_write), 
+                                  .mem_reset(multi_mem_reset), .mem_write_val(multi_mem_write_val), .mem_extended_read_val(multi_mem_extended_read_val));
                             
     hist2d_bin_out_stream stream(.clk100(clk100), .start_data_out(start_data_out), .num_data_pts(num_data_pts), 
                                  .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .data_out(stream_data_out), 
-                                 .bin_val(stream_bin_val), .i_bin_out(stream_i_bin_out), q_bin_out(stream_q_bin_out));
+                                 .bin_val(stream_bin_val), .i_bin_out(stream_i_bin_out), .q_bin_out(stream_q_bin_out),
+                                 .mem_read_val(stream_mem_read_val), .mem_address(stream_mem_address), .mem_write(stream_mem_write), 
+                                 .mem_reset(stream_mem_reset), .mem_write_val(stream_mem_write_val));
+    
+    // central bram!                             
+    hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val(extended_read_val));
 
 endmodule
 
@@ -623,12 +777,23 @@ module classify_count(
         
         output reg [15:0] excited_count, ground_count, line_count
     );
+    
+    parameter GROUND_STATE = 2'b01;
+    parameter EXCITED_STATE = 2'b10;
+    parameter CLASSIFY_LINE = 2'b11;
+    parameter ERROR = 2'b00;
+    
+    initial begin
+        excited_count = 0;
+        ground_count = 0;
+        line_count = 0;
+    end
 
     always @(posedge clk100) begin
         if(reset) begin
-            excited_count <= 0;
-            ground_count <= 0;
-            line_count <= 0;
+            excited_count <= 16'b0;
+            ground_count <= 16'b0;
+            line_count <= 16'b0;
         end
         else begin
             if(data_in) begin
@@ -640,7 +805,7 @@ module classify_count(
                     
                     CLASSIFY_LINE: line_count <= line_count + 1;
                     
-                    ERROR: ; 
+                    ERROR: begin ; end 
                 
                 endcase
             end
@@ -662,7 +827,7 @@ module classify_master(
         // vector from origin with slope perpendicular to line, pts in direction of excited state
         input signed [31:0] i_vec_perp, q_vec_perp,
         
-        output [127:0] fpga_output
+        output reg [127:0] fpga_output
     );
     
     // classify output
@@ -676,16 +841,19 @@ module classify_master(
     // classify_count input/output
     reg reset;
     reg [15:0] data_pt_count = 0;
-    reg [15:0] excited_count = 0;
-    reg [15:0] ground_count = 0;
-    reg [15:0] line_count = 0;
+    wire [15:0] excited_count;
+    wire [15:0] ground_count;
+    wire [15:0] line_count;
     
     reg [2:0] count_mode;
     parameter COUNT = 2'b00; 
     parameter OUTPUT_FINAL = 2'b01;
     parameter RESET = 2'b10;
     
-    initial count_mode = COUNT;
+    initial begin 
+        count_mode = COUNT;
+        fpga_output = 0;
+    end
     
     always @(posedge clk100) begin
         // output values as they come in
@@ -725,7 +893,7 @@ module classify_master(
         end
     end
     
-    classify lin_class(.clk100(clk100), .data_in(data_in), .i_val(i_val), q_val(q_val), 
+    classify lin_class(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), 
                        .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), .i_vec_perp(i_vec_perp), 
                        .q_vec_perp(q_vec_perp), .state(state), .valid_output(valid_class_pt));
     
