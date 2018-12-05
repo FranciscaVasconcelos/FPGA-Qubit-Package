@@ -154,25 +154,25 @@ module hist2d_store_bin(
         input [7:0] i_bin_coord, q_bin_coord,
         
         // for accessing histogram memory
-        input [15:0] mem_read_val;
-        output [15:0] mem_address; 
-        output mem_write;
-        output mem_reset;
-        output [15:0] mem_write_val;
+        input [15:0] mem_read_val,
+        output reg [15:0] mem_address, 
+        output reg mem_write,
+        output reg mem_reset,
+        output reg [15:0] mem_write_val,
 
         // static input
         input [7:0] i_bin_num, q_bin_num // number of bins along axis
     );
     
-    reg data_mode; // use fsm to keep track of mode
-    parameter DATA_IN = 1;
-    parameter STORE_VAL = 0;
+    reg [1:0] data_mode; // use fsm to keep track of mode
+    parameter DATA_IN = 2'b00;
+    parameter UPDATE = 2'b01;
+    parameter STORE_VAL = 2'b10;
     
     initial begin
         data_mode = DATA_IN;
-        mem_read_val = 0;
         mem_address = 0; 
-        omem_write = 0;
+        mem_write = 0;
         mem_reset = 0;
         mem_write_val = 0;
     end
@@ -186,8 +186,12 @@ module hist2d_store_bin(
                     //if(i_bin_coord == 255 && q_bin_coord == 255) mem_address <= 255*255;
                     // normal data
                     mem_address <= i_bin_coord + q_bin_coord * i_bin_num;
-                    data_mode <= STORE_VAL;
+                    data_mode <= UPDATE;
                 end
+            end
+            
+            UPDATE: begin
+                data_mode <= STORE_VAL;
             end
             
             STORE_VAL: begin
@@ -214,11 +218,11 @@ module hist2d_bin_out_stream(
         input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
         // block ram ports
-        input [15:0] mem_read_val;
-        output [15:0] mem_address;  
-        output mem_write;           
-        output mem_reset;           
-        output [15:0] mem_write_val;
+        input [15:0] mem_read_val,
+        output reg [15:0] mem_address,  
+        output reg mem_write,           
+        output reg mem_reset,           
+        output reg [15:0] mem_write_val,
         
         output reg data_out, // denotes that data pt is being sent
         output reg [15:0] bin_val,
@@ -233,6 +237,7 @@ module hist2d_bin_out_stream(
     parameter CALC_ADDR = 3'b100;
     parameter RESET = 3'b101;
     parameter OVERFLOW = 3'b110;
+    parameter UPDATE = 3'b111;
     
     integer j;
     
@@ -251,8 +256,8 @@ module hist2d_bin_out_stream(
             
             DATA_OUT: begin
                 if(mem_address < i_bin_num*q_bin_num) begin // output value
-                    data_out <= 1;
                     bin_val <= mem_read_val;
+                    data_out <= 1;
                     data_mode <= SEND_OUT;
                 end
                 else begin // end of values, output out_of_bounds bin, reset
@@ -267,9 +272,9 @@ module hist2d_bin_out_stream(
                 bin_val <= mem_read_val; // over_flow_bin
                 i_out_count <= 8'd255;
                 q_out_count <= 8'd255;
-                data_finished <= 1;
                 data_mode <= RESET;
             end
+            
             
             SEND_OUT: begin
                 data_out <= 0;
@@ -318,12 +323,12 @@ module hist2d_bin_out_multiple(
         input [7:0] i_bin_num, q_bin_num, // number of bins along axis
         
         // for accessing histogram memory
-        input [127:0] mem_extended_read_val;
-        input [15:0] mem_read_val;
-        output [15:0] mem_address; 
-        output mem_write;
-        output mem_reset;
-        output [15:0] mem_write_val;
+        input [127:0] mem_extended_read_val,
+        input [15:0] mem_read_val,
+        output reg [15:0] mem_address, 
+        output reg mem_write,
+        output reg mem_reset,
+        output reg [15:0] mem_write_val,
 
         output reg data_out, // denotes that data pt is being sent
         output reg [79:0] bins_out
@@ -396,11 +401,11 @@ module hist2d_pt_to_bin(
         input signed [15:0] i_min, q_min, // bin origin
         
         // for accessing histogram memory
-        input [15:0] mem_read_val;
-        output reg [15:0] mem_address; 
-        output reg mem_write;
-        output reg mem_reset;
-        output reg [15:0] mem_write_val;
+        input [15:0] mem_read_val,
+        output reg [15:0] mem_address, 
+        output reg mem_write,
+        output reg mem_reset,
+        output reg [15:0] mem_write_val,
         
         output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
         output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
@@ -485,9 +490,9 @@ module hist2d_pt_to_bin(
                                .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
     
     // save values to histogram memory                           
-    hist2d_store_bin(.clk100(clk100),.data_in(store_data),.i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
-                     .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .mem_read_val(mem_read_val), .mem_address(mem_address),
-                     .mem_write(mem_write), .mem_reset(mem_reset), .mem_write_val(mem_write_val));
+    hist2d_store_bin store_vals(.clk100(clk100),.data_in(store_data),.i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
+                                 .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .mem_read_val(mem_read_val), .mem_address(mem_address),
+                                 .mem_write(mem_write), .mem_reset(mem_reset), .mem_write_val(mem_write_val));
     
 endmodule // hist2d
 
@@ -521,7 +526,6 @@ module hist2d_master(
     wire [15:0] pt_bin_mem_write_val;
     
     // hist2d_bin_out_multiple
-    wire multi_data_out;
     wire [79:0] multi_bins_out;
     reg [127:0] multi_mem_extended_read_val;
     reg [15:0] multi_mem_read_val;
@@ -531,15 +535,14 @@ module hist2d_master(
     wire [15:0] multi_mem_write_val;
     
     // hist2d_bin_out_stream
-    wire stream_data_out;
     wire [15:0] stream_bin_val;
     wire [7:0] stream_i_bin_out;
     wire [7:0] stream_q_bin_out;
-    reg [15:0] pt_bin_mem_read_val;
-    wire [15:0] pt_bin_mem_address; 
-    wire pt_bin_mem_write;
-    wire pt_bin_mem_reset;
-    wire [15:0] pt_bin_mem_write_val;
+    reg [15:0] stream_mem_read_val;
+    wire [15:0] stream_mem_address; 
+    wire stream_mem_write;
+    wire stream_mem_reset;
+    wire [15:0] stream_mem_write_val;
     
     // for accessing histogram memory
     wire [127:0] mem_extended_read_val;
@@ -565,7 +568,7 @@ module hist2d_master(
             data_out <= stream_data_out;
             fpga_output <= {80'd0, stream_bin_val, 8'd0, stream_i_bin_out, 8'd0, stream_q_bin_out};
         
-            case(stream_state) begin
+            case(stream_state) 
                 PT_TO_BIN: begin
                     if(i_q_found) begin
                         mem_address <= stream_mem_address; 
@@ -591,9 +594,9 @@ module hist2d_master(
                     if(stream_i_bin_out == 8'd255 && stream_q_bin_out == 8'd255) begin
                         mem_address <= pt_bin_mem_address; 
                         mem_write <= pt_bin_mem_write;
-                        mem_reset <= pt_bin_stream_mem_reset;
+                        mem_reset <= pt_bin_mem_reset;
                         mem_write_val <= pt_bin_mem_write_val;
-                        pt_bin_read_val <= mem_read_val;
+                        pt_bin_mem_read_val <= mem_read_val;
                         
                         stream_state <= PT_TO_BIN;
                     end
@@ -607,14 +610,14 @@ module hist2d_master(
                     end
                 
                 end
-            end
+            endcase
             
         end
         // multi output mode
         else begin
             data_out <= multi_data_out;
             
-            case(multi_state) begin
+            case(multi_state) 
                 PT_TO_BIN: begin
                     if(i_q_found) begin
                         mem_address <= multi_mem_address; 
@@ -639,9 +642,9 @@ module hist2d_master(
                     if(mem_address == 255*255) begin
                         mem_address <= pt_bin_mem_address; 
                         mem_write <= pt_bin_mem_write;
-                        mem_reset <= pt_bin_stream_mem_reset;
+                        mem_reset <= pt_bin_mem_reset;
                         mem_write_val <= pt_bin_mem_write_val;
-                        pt_bin_read_val <= mem_read_val;
+                        pt_bin_mem_read_val <= mem_read_val;
                         
                         multi_state <= PT_TO_BIN;
                     end
@@ -652,11 +655,11 @@ module hist2d_master(
                         mem_reset <= multi_mem_reset;
                         mem_write_val <= multi_mem_write_val;
                         multi_mem_read_val <= mem_read_val;
-                        multi_mem_extended_read_val <= muem_extended_read_val;
+                        multi_mem_extended_read_val <= mem_extended_read_val;
                     end
                 end
                 
-            end
+            endcase
         end
     end
     
