@@ -316,8 +316,16 @@ module multiplier(
 
     // initiation values for DDS
     wire phase_valid = 1;
-    wire error;
-    wire data_valid;
+    wire error0;
+    wire error1;
+    wire error2;
+    wire error3;
+    wire error4;
+    wire data_valid0;
+    wire data_valid1;
+    wire data_valid2;
+    wire data_valid3;
+    wire data_valid4;
 
     // DDS COMPILERS
     // mode: sine/cosine LUT
@@ -327,24 +335,24 @@ module multiplier(
     // latency: 1
     dds_compiler_0 sincos0(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[0]),
-        .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[0]),
-        .event_phase_in_invalid(error));
+        .m_axis_data_tvalid(data_valid0), .m_axis_data_tdata(sin_cos[0]),
+        .event_phase_in_invalid(error0));
     dds_compiler_0 sincos1(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[1]),
-        .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[1]),
-        .event_phase_in_invalid(error));
+        .m_axis_data_tvalid(data_valid1), .m_axis_data_tdata(sin_cos[1]),
+        .event_phase_in_invalid(error1));
     dds_compiler_0 sincos2(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[2]),
-        .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[2]),
-        .event_phase_in_invalid(error));
+        .m_axis_data_tvalid(data_valid2), .m_axis_data_tdata(sin_cos[2]),
+        .event_phase_in_invalid(error2));
     dds_compiler_0 sincos3(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[3]),
-        .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[3]),
-        .event_phase_in_invalid(error));
+        .m_axis_data_tvalid(data_valid3), .m_axis_data_tdata(sin_cos[3]),
+        .event_phase_in_invalid(error3));
     dds_compiler_0 sincos4(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
         .s_axis_phase_tdata(phase_vals[4]),
-        .m_axis_data_tvalid(data_valid), .m_axis_data_tdata(sin_cos[4]),
-        .event_phase_in_invalid(error));
+        .m_axis_data_tvalid(data_valid4), .m_axis_data_tdata(sin_cos[4]),
+        .event_phase_in_invalid(error4));
 
     // create registers to hold our I and Q data in order to match with DDS output
     reg signed [4:0] [15:0] data_i_hold;
