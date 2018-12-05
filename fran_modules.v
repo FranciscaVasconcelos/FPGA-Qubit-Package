@@ -154,7 +154,7 @@ module hist2d_store_bin(
         input [7:0] i_bin_coord, q_bin_coord,
 
         // static input
-        input [7:0] i_bin_num, q_bin_num, // number of bins along axis
+        input [7:0] i_bin_num, q_bin_num // number of bins along axis
     );
     
     // for accessing histogram memory
@@ -343,7 +343,7 @@ module hist2d_bin_out_multiple(
                     data_mode <= SEND_OUT;
                 end
                 else begin // end of values, output out_of_bounds bin, reset
-                    data_mode <= RESET
+                    data_mode <= RESET;
                 end
             end
             
@@ -474,10 +474,10 @@ module hist2d_master(
         input clk100,
         input data_in,
         input signed [31:0] i_val, q_val,
-        input output_mode; // 1 -> stream, 0 -> multiple
+        input output_mode, // 1 -> stream, 0 -> multiple
             
         // static input (from config)
-        input [15:0] num_data_pts // total number of data points to be binned
+        input [15:0] num_data_pts, // total number of data points to be binned
         input [7:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-254, 255 used for overflow)
         input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
         input signed [15:0] i_min, q_min, // bin origin
@@ -489,9 +489,9 @@ module hist2d_master(
     reg start_data_out = 0; // begins data output from histogram memory
     
     // hist2d_pt_to_bin output
-    wire i_q_found, // boolean - 1 indicated valid data output for ! stream mode
-    wire [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
-    wire [7:0] q_bin_coord // can have up to 255 bins along q direction (256th bin counts # outside range)
+    wire i_q_found; // boolean - 1 indicated valid data output for ! stream mode
+    wire [7:0] i_bin_coord; // can have up to 255 bins along i direction (256th bin counts # outside range) 
+    wire [7:0] q_bin_coord; // can have up to 255 bins along q direction (256th bin counts # outside range)
     
     // hist2d_bin_out_multiple
     wire multi_data_out;
@@ -655,7 +655,7 @@ module classify_master(
         input data_in, // indicates if new i,q data is coming in 
         input signed [31:0] i_val, q_val, // pt to be classified
         
-        input stream_mode; // 1 to stream classifications as they come in, 0 to report counts at end
+        input stream_mode, // 1 to stream classifications as they come in, 0 to report counts at end
         
         // static input
         input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
@@ -690,7 +690,7 @@ module classify_master(
     always @(posedge clk100) begin
         // output values as they come in
         if(stream_mode) begin
-            fpga_output <= {112'b0, valid_class_pt, 13'b0, state}
+            fpga_output <= {112'b0, valid_class_pt, 13'b0, state};
         end
         
         // output values while updating and signal when finished
@@ -719,7 +719,7 @@ module classify_master(
                     count_mode <= COUNT;
                 end
                 
-                default <= RESET;
+                default count_mode <= RESET;
                 
             endcase
         end
