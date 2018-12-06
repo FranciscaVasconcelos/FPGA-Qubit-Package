@@ -4,18 +4,7 @@
 // Date: 28/11/2018
 ////////////////////////////////////////////////////////////////////////////////
 
-module top_main #(
-	DEMOD_FREQ = 5,
-	SAMPLE_LENGTH = 20000,
-	SAMPLE_FREQ = 5,
-	DELAY_TIME = 5000,
-	ANALYZE_MODE = 0,
-	X_BIN_WIDTH = 100,
-	Y_BIN_WIDTH = 100,
-	X_BIN_NUM = 10,
-	Y_BIN_NUM = 10,
-	X_BIN_MIN = 0,
-	Y_BIN_MIN = 0)(
+module top_main (
 	input clk100, reset, config_reset,
 	// config control
 	input [13:0] MEM_sdi_mem_S_address, // parameter location
@@ -38,31 +27,6 @@ module top_main #(
     output signed [31:0] i_pt_line, q_pt_line,
     output output_mode);
 
-	// configuration parameters
-	// parameterized for testing
-	wire [4:0] demod_freq_new = DEMOD_FREQ;
-    wire [10:0] sample_length_new = SAMPLE_LENGTH;
-    wire [5:0] sample_freq_new = SAMPLE_FREQ;
-    wire [9:0] delay_time_new = DELAY_TIME;
-    wire [1:0] analyze_mode_new = ANALYZE_MODE;
-    wire [15:0] x_bin_width_new = X_BIN_WIDTH;
-    wire [15:0] y_bin_width_new = Y_BIN_WIDTH;
-    wire[4:0] x_bin_num_new = X_BIN_NUM;
-    wire [4:0] y_bin_num_new = Y_BIN_NUM;
-    wire signed [15:0] x_bin_min_new = X_BIN_MIN;
-    wire signed [15:0] y_bin_min_new = Y_BIN_MIN;
-       
-    // build mod50 LUT
-    wire [9:0] [4:0] [5:0] demod_mod50_LUT_new;
-    genvar i, j;
-    generate
-        for (i = 0; i < 5; i = i + 1) begin : gen1
-            for (j = 0; j < 10; j = j + 1) begin : gen2
-                assign demod_mod50_LUT_new[j][i] = (DEMOD_FREQ * (i + 5 * j)) % 50;
-            end
-        end
-    endgenerate
-
     // configurated values
     wire [4:0] demod_freq;
     wire [10:0] sample_length;
@@ -71,21 +35,19 @@ module top_main #(
     wire [9:0] [4:0] [5:0] demod_mod50_LUT;
 
     // instantiate parameter configuration
-	config_params config_main(.clk100(clk100), .reset(reset), .config_reset(config_reset),
-		.demod_freq_new(demod_freq_new), .demod_mod50_LUT_new(demod_mod50_LUT_new),
-		.sample_length_new(sample_length_new), .sample_freq_new(sample_freq_new),
-		.delay_time_new(delay_time_new),
-		.analyze_mode_new(analyze_mode_new),
-		.x_bin_width_new(x_bin_width_new), .y_bin_width_new(y_bin_width_new),
-        .x_bin_num_new(x_bin_num_new), .y_bin_num_new(y_bin_num_new),
-        .x_bin_min_new(x_bin_min_new), .y_bin_min_new(y_bin_min_new),
+	config_params config_main(.clk100(clk100), .reset(reset),
+		// config protocol
+		.MEM_sdi_mem_S_address(MEM_sdi_mem_S_address),
+        .MEM_sdi_mem_S_wrEn(MEM_sdi_mem_S_wrEn),
+        .MEM_sdi_mem_S_wrData(MEM_sdi_mem_S_wrData),
+		// parameter
 		.demod_freq(demod_freq), .demod_mod50_LUT(demod_mod50_LUT),
 		.sample_length(sample_length), .sample_freq(sample_freq),
 		.delay_time(delay_time),
 		.analyze_mode(analyze_mode),
-		.x_bin_width(i_bin_width), .y_bin_width(q_bin_width),
-		.x_bin_num(i_bin_num), .y_bin_num(q_bin_num),
-		.x_bin_min(i_bin_min), .y_bin_min(q_bin_min),
+		.i_bin_width(i_bin_width), .q_bin_width(q_bin_width),
+		.i_bin_num(i_bin_num), .q_bin_num(q_bin_num),
+		.i_bin_min(i_bin_min), .q_bin_min(q_bin_min),
 		.i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp),
         .i_pt_line(i_pt_line), .q_pt_line(q_pt_line),
         .output_mode(output_mode));

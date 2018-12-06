@@ -9,7 +9,6 @@ module config_params(
     // inputs
     input clk100,
     input reset,
-    input config_reset,
     // control inputs
     input [13:0] MEM_sdi_mem_S_address, // parameter location
     input MEM_sdi_mem_S_wrEn, // write enable
