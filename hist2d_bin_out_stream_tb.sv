@@ -74,7 +74,7 @@ module hist2d_bin_out_stream_tb(
         assign store_mem_read_val = mem_read_val;
         #20;
         
-        while(count < 4) begin
+        while(count < num_data_pts) begin
             
             data_in = 1;
             #20;

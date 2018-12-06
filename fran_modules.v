@@ -126,7 +126,8 @@ module hist2d_bram (
     );
     
     // store 2d array in 1d bram, by making i LSB and q MSB
-    reg [15:0] hist2d [255*255:0]; // bin vals BRAM
+    //reg [15:0] hist2d [255*255:0]; // bin vals BRAM
+    reg [15:0] hist2d [200*200:0]; // bin vals BRAM
     
     integer j;
     
@@ -289,6 +290,10 @@ module hist2d_bin_out_stream(
             
             CALC_ADDR: begin
                 mem_address <= i_out_count + q_out_count*i_bin_num;
+                data_mode <= UPDATE;
+            end
+            
+            UPDATE: begin
                 data_mode <= DATA_OUT;
             end
             
@@ -402,10 +407,10 @@ module hist2d_pt_to_bin(
         
         // for accessing histogram memory
         input [15:0] mem_read_val,
-        output reg [15:0] mem_address, 
-        output reg mem_write,
-        output reg mem_reset,
-        output reg [15:0] mem_write_val,
+        output [15:0] mem_address, 
+        output mem_write,
+        output mem_reset,
+        output [15:0] mem_write_val,
         
         output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
         output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
@@ -830,6 +835,7 @@ module classify_master(
         // vector from origin with slope perpendicular to line, pts in direction of excited state
         input signed [31:0] i_vec_perp, q_vec_perp,
         
+        output reg data_output_trigger,
         output reg [127:0] fpga_output
     );
     
@@ -870,6 +876,7 @@ module classify_master(
             
                 COUNT: begin
                     reset <= 0;
+                    data_output_trigger <= 0;
                     if(data_pt_count < num_data_pts-1) begin
                         fpga_output <= {16'b0, data_pt_count, excited_count, ground_count, line_count};
                         reset <= 0;
@@ -879,12 +886,14 @@ module classify_master(
                 end
                 
                 OUTPUT_FINAL: begin
-                    fpga_output <= {16'd1, data_pt_count, excited_count, ground_count, line_count};
+                    data_output_trigger <= 1;
+                    fpga_output <= {16'd0, data_pt_count, excited_count, ground_count, line_count};
                     count_mode <= RESET;
                 end
                 
                 RESET: begin
                     reset <= 1;
+                    data_output_trigger <= 0;
                     data_pt_count <= 0;
                     fpga_output <= 0;
                     count_mode <= COUNT;
@@ -913,23 +922,25 @@ module analyze_fsm(
     //config params
     input [1:0] analyze_mode, // fsm state
     input [15:0] num_data_pts, // total number of points
-    input [1:0] ouput_mode, // stream or no stream?    
+    input ouput_mode, // stream or no stream?
+       
     
     // i-q data parameters
     input data_in,
     input signed [31:0] i_val, q_val,
 
     // histogram inputs 
-    input [3:0] x_bin, y_bin,
+    input [7:0] i_bin_num, q_bin_num, // number of bins on each axis
+    input [15:0] i_bin_width, q_bin_width, // bin width on each axis
+    input [15:0] i_min, q_min, // origin pt of 0,0 bin
 
     // classification inputs
     input signed [31:0] i_vec_perp, q_vec_perp,
     input signed [31:0] i_pt_line, q_pt_line, 
 
     // output data
+    output reg data_output_trigger,
     output reg [127:0] output_channels);
-
-    wire [1:0] state = analyze_mode;
 
     // define states
     parameter DATA_DUMP_MODE = 2'b00;
@@ -938,22 +949,27 @@ module analyze_fsm(
 
     // for reading output of different modules
     wire [127:0] classify_output;
+    wire classify_trigger;
     wire [127:0] hist2d_output;
+    wire hist2d_trigger;
 
     // analysis FSM
     always @(posedge clk100) begin
-        case(state)
+        case(analyze_mode)
 
             DATA_DUMP_MODE: begin
                 if (data_in) output_channels <= {64'd0, i_val, q_val};
+                data_output_trigger <= data_in;
             end 
 
             CLASSIFY_MODE: begin
                 output_channels <= classify_output;
+                data_output_trigger <= classify_trigger;
             end 
 
             HIST2D_MODE: begin
                 output_channels <= hist2d_output;
+                data_output_trigger <= hist2d_trigger;
             end
 
             default: output_channels <= 64'b0; 
@@ -964,12 +980,13 @@ module analyze_fsm(
     // linear classification control module
     classify_master lin_class(.clk100(clk100), .num_data_pts(num_data_pts), .data_in(data_in), .i_val(i_val), 
                               .q_val(q_val), .stream_mode(output_mode), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
-                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output));
+                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output), 
+                              .data_output_trigger(classify_trigger));
     
     // 2D histogram control module
-    hist2d_master hist2d(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .output_mode(output_mode),
+    hist2d_master hist2d_sensei(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .output_mode(output_mode),
                          .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), 
-                         .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .data_out(), .fpga_output(hist2d_output));
+                         .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .data_out(hist2d), .fpga_output(hist2d_output));
     
 endmodule // analyze_fsm
 
