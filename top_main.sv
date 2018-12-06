@@ -17,21 +17,26 @@ module top_main #(
 	X_BIN_MIN = 0,
 	Y_BIN_MIN = 0)(
 	input clk100, reset, config_reset,
+	// config control
+	input [13:0] MEM_sdi_mem_S_address, // parameter location
+    input MEM_sdi_mem_S_wrEn, // write on
+    input [32:0] MEM_sdi_mem_S_wrData, // parameter value
+    // i input
 	input [15:0] data0_in_0, data0_in_1, data0_in_2, data0_in_3, data0_in_4,
+	// q input
 	input [15:0] data1_in_0, data1_in_1, data1_in_2, data1_in_3, data1_in_4,
 	input trigger,
+	//outputs
 	output iq_valid,
-	output [31:0] i_val,
-	output [31:0] q_val,
+	output [31:0] i_val, q_val,
 	// configurated prameters to pass to lower modules
 	output [1:0] analyze_mode,
-    output [15:0] x_bin_width,
-    output [15:0] y_bin_width,
-    output [4:0] x_bin_num,
-    output [4:0] y_bin_num,
-    output signed [15:0] x_bin_min,
-    output signed [15:0] y_bin_min
-	);
+    output [15:0] i_bin_width, q_bin_width,
+    output [4:0] i_bin_num, q_bin_num,
+    output signed [15:0] i_bin_min, q_bin_min,
+    output signed [31:0] i_vec_perp, q_vec_perp,
+    output signed [31:0] i_pt_line, q_pt_line,
+    output output_mode);
 
 	// configuration parameters
 	// parameterized for testing
@@ -48,12 +53,12 @@ module top_main #(
     wire signed [15:0] y_bin_min_new = Y_BIN_MIN;
        
     // build mod50 LUT
-    wire [4:0] [9:0] [5:0] demod_mod50_LUT_new;
+    wire [9:0] [4:0] [5:0] demod_mod50_LUT_new;
     genvar i, j;
     generate
         for (i = 0; i < 5; i = i + 1) begin : gen1
             for (j = 0; j < 10; j = j + 1) begin : gen2
-                assign demod_mod50_LUT_new[i][j] = (DEMOD_FREQ * (i + 5 * j)) % 50;
+                assign demod_mod50_LUT_new[j][i] = (DEMOD_FREQ * (i + 5 * j)) % 50;
             end
         end
     endgenerate
@@ -63,8 +68,9 @@ module top_main #(
     wire [10:0] sample_length;
     wire [5:0] sample_freq;
     wire [13:0] delay_time;
-    wire [4:0] [9:0] [5:0] demod_mod50_LUT;
+    wire [9:0] [4:0] [5:0] demod_mod50_LUT;
 
+    // instantiate parameter configuration
 	config_params config_main(.clk100(clk100), .reset(reset), .config_reset(config_reset),
 		.demod_freq_new(demod_freq_new), .demod_mod50_LUT_new(demod_mod50_LUT_new),
 		.sample_length_new(sample_length_new), .sample_freq_new(sample_freq_new),
@@ -77,9 +83,12 @@ module top_main #(
 		.sample_length(sample_length), .sample_freq(sample_freq),
 		.delay_time(delay_time),
 		.analyze_mode(analyze_mode),
-		.x_bin_width(x_bin_width), .y_bin_width(y_bin_width),
-		.x_bin_num(x_bin_num), .y_bin_num(y_bin_num),
-		.x_bin_min(x_bin_min), .y_bin_min(y_bin_min));
+		.x_bin_width(i_bin_width), .y_bin_width(q_bin_width),
+		.x_bin_num(i_bin_num), .y_bin_num(q_bin_num),
+		.x_bin_min(i_bin_min), .y_bin_min(q_bin_min),
+		.i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp),
+        .i_pt_line(i_pt_line), .q_pt_line(q_pt_line),
+        .output_mode(output_mode));
 
 	// start data collection
 	// output from timing module
@@ -104,8 +113,9 @@ module top_main #(
 	assign data_i_in = {data0_in_0, data0_in_1, data0_in_2, data0_in_3, data0_in_4};
 	assign data_q_in = {data1_in_0, data1_in_1, data1_in_2, data1_in_3, data1_in_4};
 
-	wire [4:0] [7:0] phase_vals;
+	wire [4:0] [7:0] phase_vals; // create phase value array
 
+	// instantiate sampler
 	sampler sampler_main(
 		// inputs
 		.clk100(clk100), .reset(reset), .start(start_collect),
@@ -121,6 +131,7 @@ module top_main #(
 	wire signed [4:0] [31:0] data_i_rot;
 	wire signed [4:0] [31:0] data_q_rot;
 
+	// instantiate multiplier
 	multiplier multiplier_main(
 		// inputs
 		.clk100(clk100), .reset(reset),
@@ -129,6 +140,7 @@ module top_main #(
 		// outputs
 		.data_i_rot(data_i_rot), .data_q_rot(data_q_rot)); // counter rotated outputs
 
+	// instantiate integrator
 	integrator integrator_main(
 		// inputs
 		.clk100(clk100), .reset(reset), .start(start_collect),
