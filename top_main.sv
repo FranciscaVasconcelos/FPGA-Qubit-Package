@@ -20,6 +20,7 @@ module top_main (
 	output [31:0] i_val, q_val,
 	// configurated prameters to pass to lower modules
 	output [1:0] analyze_mode,
+	output [15:0] num_data_pts,
     output [15:0] i_bin_width, q_bin_width,
     output [4:0] i_bin_num, q_bin_num,
     output signed [15:0] i_bin_min, q_bin_min,
@@ -41,7 +42,8 @@ module top_main (
         .MEM_sdi_mem_S_wrEn(MEM_sdi_mem_S_wrEn),
         .MEM_sdi_mem_S_wrData(MEM_sdi_mem_S_wrData),
 		// parameter
-		.demod_freq(demod_freq), .demod_mod50_LUT(demod_mod50_LUT),
+		.demod_freq(demod_freq), .num_data_pts(num_data_pts),
+		.demod_mod50_LUT(demod_mod50_LUT),
 		.sample_length(sample_length), .sample_freq(sample_freq),
 		.delay_time(delay_time),
 		.analyze_mode(analyze_mode),

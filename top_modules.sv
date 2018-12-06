@@ -16,6 +16,7 @@ module config_params(
 
     // outputs
     output reg [4:0] demod_freq, // freq divided by 10 MHz
+    output reg [15:0] num_data_pts, // total number of measurements
     output reg [9:0] [4:0] [5:0] demod_mod50_LUT, // LUT containing values for mod 50 updated for each value of demod_freq
     output reg [10:0] sample_length, // max 20 us
     output reg [5:0] sample_freq, // min 8 MHz
@@ -31,6 +32,7 @@ module config_params(
     always @(posedge clk100) begin
         if (reset) begin // reset to default
             demod_freq <= 5'd5; // 50 MHz
+            
             demod_mod50_LUT <= {{6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
                                 {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
@@ -60,6 +62,8 @@ module config_params(
             // search for correct address
             if (MEM_sdi_mem_S_address == 14'd0)
                 demod_freq <= MEM_sdi_mem_S_wrData[4:0];
+            else if (MEM_sdi_mem_S_address == 14'd1)
+                num_data_pts <= MEM_sdi_mem_S_wrData[15:0];
 
             else if (MEM_sdi_mem_S_address == 14'd10)
                 demod_mod50_LUT[0] <= MEM_sdi_mem_S_wrData[29:0];
