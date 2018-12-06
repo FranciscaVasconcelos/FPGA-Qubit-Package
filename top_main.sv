@@ -53,12 +53,12 @@ module top_main #(
     wire signed [15:0] y_bin_min_new = Y_BIN_MIN;
        
     // build mod50 LUT
-    wire [4:0] [9:0] [5:0] demod_mod50_LUT_new;
+    wire [9:0] [4:0] [5:0] demod_mod50_LUT_new;
     genvar i, j;
     generate
         for (i = 0; i < 5; i = i + 1) begin : gen1
             for (j = 0; j < 10; j = j + 1) begin : gen2
-                assign demod_mod50_LUT_new[i][j] = (DEMOD_FREQ * (i + 5 * j)) % 50;
+                assign demod_mod50_LUT_new[j][i] = (DEMOD_FREQ * (i + 5 * j)) % 50;
             end
         end
     endgenerate
@@ -68,7 +68,7 @@ module top_main #(
     wire [10:0] sample_length;
     wire [5:0] sample_freq;
     wire [13:0] delay_time;
-    wire [4:0] [9:0] [5:0] demod_mod50_LUT;
+    wire [9:0] [4:0] [5:0] demod_mod50_LUT;
 
     // instantiate parameter configuration
 	config_params config_main(.clk100(clk100), .reset(reset), .config_reset(config_reset),
