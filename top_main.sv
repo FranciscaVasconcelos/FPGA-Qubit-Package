@@ -5,7 +5,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 module top_main (
-	input clk100, reset, config_reset,
+	input clk100, reset,
 	// config control
 	input [13:0] MEM_sdi_mem_S_address, // parameter location
     input MEM_sdi_mem_S_wrEn, // write on
@@ -22,7 +22,7 @@ module top_main (
 	output [1:0] analyze_mode,
 	output [15:0] num_data_pts,
     output [15:0] i_bin_width, q_bin_width,
-    output [4:0] i_bin_num, q_bin_num,
+    output [7:0] i_bin_num, q_bin_num,
     output signed [15:0] i_bin_min, q_bin_min,
     output signed [31:0] i_vec_perp, q_vec_perp,
     output signed [31:0] i_pt_line, q_pt_line,

@@ -23,11 +23,11 @@ module config_params(
     output reg [13:0] delay_time, // max 163 us
     output reg [1:0] analyze_mode, // data dump, binning, classifier
     output reg [15:0] i_bin_width, q_bin_width, // width of bin in i, q_direction
-    output reg [4:0] i_bin_num, q_bin_num, // number of bins along i, q_direction
+    output reg [7:0] i_bin_num, q_bin_num, // number of bins along i, q_direction
     output reg signed [15:0] i_bin_min, q_bin_min, // start of bins i, q_direction
     output reg signed [31:0] i_vec_perp, q_vec_perp, // perpendicular classifier lines
     output reg signed [31:0] i_pt_line, q_pt_line,
-    output output_mode);
+    output reg output_mode);
 
     always @(posedge clk100) begin
         if (reset) begin // reset to default
@@ -49,14 +49,15 @@ module config_params(
             analyze_mode <= 2'd0;
             i_bin_width <= 16'd100;
             q_bin_width <= 16'd100;
-            i_bin_num <= 5'd10;
-            q_bin_num <= 5'd10;
+            i_bin_num <= 8'd10;
+            q_bin_num <= 8'd10;
             i_bin_min <= 16'd0;
             q_bin_min <= 16'd0;
             i_vec_perp <= 32'd0;
             q_vec_perp <= 32'd0;
             i_pt_line <= 32'd0;
             q_pt_line <= 32'd0;
+            output_mode <= 1'd0;
         end
         else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values
             // search for correct address
@@ -64,6 +65,8 @@ module config_params(
                 demod_freq <= MEM_sdi_mem_S_wrData[4:0];
             else if (MEM_sdi_mem_S_address == 14'd1)
                 num_data_pts <= MEM_sdi_mem_S_wrData[15:0];
+            else if (MEM_sdi_mem_S_address == 14'd2)
+                output_mode <= MEM_sdi_mem_S_wrData[0];
 
             else if (MEM_sdi_mem_S_address == 14'd10)
                 demod_mod50_LUT[0] <= MEM_sdi_mem_S_wrData[29:0];
@@ -100,9 +103,9 @@ module config_params(
             else if (MEM_sdi_mem_S_address == 14'd32)
                 q_bin_width <= MEM_sdi_mem_S_wrData[15:0];
             else if (MEM_sdi_mem_S_address == 14'd33)
-                i_bin_num <= MEM_sdi_mem_S_wrData[5:0];
+                i_bin_num <= MEM_sdi_mem_S_wrData[7:0];
             else if (MEM_sdi_mem_S_address == 14'd34)
-                q_bin_num <= MEM_sdi_mem_S_wrData[5:0];
+                q_bin_num <= MEM_sdi_mem_S_wrData[7:0];
             else if (MEM_sdi_mem_S_address == 14'd35)
                 i_bin_min <= MEM_sdi_mem_S_wrData[15:0];
             else if (MEM_sdi_mem_S_address == 14'd36)

@@ -6,8 +6,8 @@
 
 module demod_main(
     // general inputs
-    input clk, clk200, rst,
-
+    input clk, rst,
+    
     // PcPort
     input [13:0] MEM_sdi_mem_S_address,
     input MEM_sdi_mem_S_rdEn, MEM_sdi_mem_S_wrEn,
@@ -40,7 +40,7 @@ module demod_main(
     input data1_in_sdi_dataStreamFCx5_S_valid,
 
     // Input 2
-    input [15:0] data2_in_sdi_dataStreamFCx5_S_data_0,
+    /*input [15:0] data2_in_sdi_dataStreamFCx5_S_data_0,
     input [15:0] data2_in_sdi_dataStreamFCx5_S_data_1,
     input [15:0] data2_in_sdi_dataStreamFCx5_S_data_2,
     input [15:0] data2_in_sdi_dataStreamFCx5_S_data_3,
@@ -53,10 +53,10 @@ module demod_main(
     input [15:0] data3_in_sdi_dataStreamFCx5_S_data_2,
     input [15:0] data3_in_sdi_dataStreamFCx5_S_data_3,
     input [15:0] data3_in_sdi_dataStreamFCx5_S_data_4,
-    input data3_in_sdi_dataStreamFCx5_S_valid,
+    input data3_in_sdi_dataStreamFCx5_S_valid,*/
 
     // Output 0
-    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_0,
+    /*output [15:0] data0_out_sdi_dataStreamFCx5_M_data_0,
     output [15:0] data0_out_sdi_dataStreamFCx5_M_data_1,
     output [15:0] data0_out_sdi_dataStreamFCx5_M_data_2,
     output [15:0] data0_out_sdi_dataStreamFCx5_M_data_3,
@@ -77,7 +77,7 @@ module demod_main(
     output [15:0] data2_out_sdi_dataStreamFCx5_M_data_2,
     output [15:0] data2_out_sdi_dataStreamFCx5_M_data_3,
     output [15:0] data2_out_sdi_dataStreamFCx5_M_data_4,
-    output data2_out_sdi_dataStreamFCx5_M_valid,
+    output data2_out_sdi_dataStreamFCx5_M_valid,*/
 
     // Output 3
     output [15:0] data3_out_sdi_dataStreamFCx5_M_data_0,
@@ -88,7 +88,8 @@ module demod_main(
     output data3_out_sdi_dataStreamFCx5_M_valid,
 
     // Triggers out
-    output [4:0] trigger0_out, trigger1_out, trigger2_out, trigger3_out
+    //output [4:0] trigger0_out, trigger1_out, trigger2_out, trigger3_out
+    output [4:0] trigger3_out
 
     );
     
@@ -98,13 +99,21 @@ module demod_main(
     wire [1:0] analyze_mode;
     wire [15:0] num_data_pts;
     wire [15:0] i_bin_width, q_bin_width;
-    wire [4:0] i_bin_num, q_bin_num;
+    wire [7:0] i_bin_num, q_bin_num;
     wire signed [15:0] i_bin_min, q_bin_min;
     wire signed [31:0] i_vec_perp, q_vec_perp;
     wire signed [31:0] i_pt_line, q_pt_line;
     wire output_mode;
     
+    wire [79:0] analyze_fsm_output;
     
+    assign MEM_sdi_mem_M_rdData = 32'b0;
+    
+    assign data3_out_sdi_dataStreamFCx5_M_data_4 = analyze_fsm_output[79:64];
+    assign data3_out_sdi_dataStreamFCx5_M_data_3 = analyze_fsm_output[63:48];
+    assign data3_out_sdi_dataStreamFCx5_M_data_2 = analyze_fsm_output[47:32];
+    assign data3_out_sdi_dataStreamFCx5_M_data_1 = analyze_fsm_output[31:16];
+    assign data3_out_sdi_dataStreamFCx5_M_data_0 = analyze_fsm_output[15:0];
     
     top_main tm(
         // inputs
@@ -141,13 +150,13 @@ module demod_main(
         .output_mode(output_mode));
 
     analyze_fsm analyze_module(
-            
+          
         .clk100(clk),
         
         //config params
         .analyze_mode(analyze_mode), // fsm state
         .num_data_pts(num_data_pts), // total number of points
-        .ouput_mode(output_mode), // stream or no stream? 
+        .output_mode(output_mode), // stream or no stream? 
         
         // i-q data parameters
         .data_in(iq_valid),
@@ -163,7 +172,7 @@ module demod_main(
         .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
     
         // output data
-        .data_trigger(data0_out_sdi_dataStreamFCx5_M_valid),
-        .output_channels({data0_out_sdi_dataStreamFCx5_M_data_4, data0_out_sdi_dataStreamFCx5_M_data_3, data0_out_sdi_dataStreamFCx5_M_data_2, data0_out_sdi_dataStreamFCx5_M_data_1, data0_out_sdi_dataStreamFCx5_M_data_0}));
+        .data_output_trigger(trigger3_out),
+        .output_channels(analyze_fsm_output));
 
 endmodule // demod_top

@@ -112,7 +112,426 @@ module bin_binary_search(
 
 endmodule
 
+// takes in i,q point and finds bin
+// outputs bin and (saves to hist_2d_memory -- not being used currently)
+module hist2d_pt_to_bin(
+        // dynamic input
+        input clk100,
+        input data_in,
+        input signed [31:0] i_val, q_val,
+        
+        // static input (from config)
+        input [7:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
+        input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
+        input signed [15:0] i_min, q_min, // bin origin
+        
+        // for accessing histogram memory
+        /*input [15:0] mem_read_val,
+        output [15:0] mem_address, 
+        output mem_write,
+        output mem_reset,
+        output [15:0] mem_write_val,*/
+        
+        output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
+        output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
+        output reg [7:0] q_bin_coord // can have up to 255 bins along q direction (256th bin counts # outside range) 
+    );
+    
+    wire i_bin_found; // boolean: 1 when bin # for i data pt is found
+    wire [7:0] i_bin_val;
+    reg [7:0] i_bin_store; 
+    
+    wire q_bin_found; // boolean: 1 when bin # for q data pt is found
+    wire [7:0] q_bin_val;
+    reg [7:0] q_bin_store;
 
+    reg [1:0] hist_state; // fsm to do 2d hist sequentially
+    parameter SEARCHING = 2'b00;
+    parameter ONE_FOUND = 2'b01;
+    parameter TWO_FOUND = 2'b10;
+    parameter SEARCH_RESET = 2'b11;
+    
+    //reg store_data = 0;
+
+    initial begin
+        hist_state = SEARCH_RESET;
+    end
+
+    always @(posedge clk100) begin
+        case(hist_state) 
+            SEARCHING: begin
+                if(i_bin_found && q_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    i_bin_store <= i_bin_val;
+                    q_bin_store <= q_bin_val;
+                end
+                else if(i_bin_found) begin
+                    hist_state <= ONE_FOUND;
+                    i_bin_store <= i_bin_val;
+                end
+                else if(q_bin_found) begin
+                    hist_state <= ONE_FOUND;
+                    q_bin_store <= q_bin_val;
+                end
+            end
+            
+            ONE_FOUND: begin
+                if(i_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    i_bin_store <= i_bin_val;
+                end
+                else if(q_bin_found) begin
+                    hist_state <= TWO_FOUND;
+                    q_bin_store <= q_bin_val;
+                end
+            end
+            
+            TWO_FOUND: begin
+                i_bin_coord <= i_bin_store;
+                q_bin_coord <= q_bin_store;
+                i_q_found <= 1;
+                //store_data <= 1;
+                hist_state <= SEARCH_RESET;
+            end
+            
+            SEARCH_RESET: begin
+                i_bin_coord <= 0;
+                q_bin_coord <= 0;
+                //store_data <= 0;
+                i_q_found <= 0;
+                if(data_in) hist_state <= SEARCHING;
+            end
+            
+        endcase
+        
+    end
+    
+    // perform binary search along i axis
+    bin_binary_search i_search(.clk100(clk100), .data_in(data_in), .value(i_val), .num_bins(i_bin_num), 
+                               .bin_width(i_bin_width), .origin(i_min), .binned(i_bin_found), .current(i_bin_val));
+    
+    // perform binary search along q axis
+    bin_binary_search q_search(.clk100(clk100), .data_in(data_in), .value(q_val), .num_bins(q_bin_num), 
+                               .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
+    
+    // save values to histogram memory                           
+    /*hist2d_store_bin store_vals(.clk100(clk100),.data_in(store_data),.i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
+                                 .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .mem_read_val(mem_read_val), .mem_address(mem_address),
+                                 .mem_write(mem_write), .mem_reset(mem_reset), .mem_write_val(mem_write_val));*/
+    
+endmodule 
+
+// perform linear classification of data points
+module classify(
+    // dynamic input
+    input clk100,
+    input data_in, // indicates if new i,q data is coming in 
+    input signed [31:0] i_val, q_val, // pt to be classified
+    
+    // static input
+    input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
+    // vector from origin with slope perpendicular to line, pts in direction of excited state
+    input signed [31:0] i_vec_perp, q_vec_perp,
+
+    // classified state of input 
+    output reg [1:0] state,
+    output reg valid_output); // boolean: 1 when there is valid output
+    
+    reg signed [31:0] i_vec_pt, q_vec_pt; // vector from origin to pt to classify
+
+    reg signed [63:0] dot_product;
+
+    // output state parameters
+    parameter GROUND_STATE = 2'b01;
+    parameter EXCITED_STATE = 2'b10;
+    parameter CLASSIFY_LINE = 2'b11;
+    parameter ERROR = 2'b00;
+    
+    reg [1:0] comp_state; // fsm to sequentially perform computation steps
+    parameter DOT_PRODUCT = 2'b00;
+    parameter CLASSIFY = 2'b01;
+    parameter RESET = 2'b10;
+    
+    initial begin 
+        comp_state <= RESET;
+    end
+    
+    // NOTE: MIGHT NEED TO ADD BUFER STATES TO ACCOUNT FOR OPERATION LAG (IF OPS EXCEED CLOCK CYCLE)
+    always @(posedge clk100) begin
+        case(comp_state)
+            
+            DOT_PRODUCT: begin
+                dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
+                comp_state <= CLASSIFY;
+            end
+            
+            CLASSIFY: begin
+                // EXCITED STATE CLASSIFICATION
+                if(dot_product>0) begin 
+                    state <= EXCITED_STATE;
+                    valid_output <= 1;
+                end
+                // GROUND STATE CLASSIFICATION
+                else if (dot_product<0) begin
+                    state <= GROUND_STATE;
+                    valid_output <= 1;
+                end
+                // PT ON CLASSIFICATION LINE
+                else if (dot_product==0) begin
+                    state <= CLASSIFY_LINE;
+                    valid_output <= 1;
+                end
+                // error case
+                else begin 
+                    state <= ERROR;
+                end
+                comp_state <= RESET;
+            end
+            
+            RESET: begin 
+                valid_output <= 0;
+                if(data_in) begin
+                    i_vec_pt <= i_val - i_pt_line;
+                    q_vec_pt <= q_val - q_pt_line;
+                    comp_state <= DOT_PRODUCT;
+                end
+            end
+            
+            default: comp_state <= RESET;
+        
+        endcase
+
+    end
+
+endmodule // classify
+
+// keeps running count of number of points in each of classification states
+module classify_count(
+        // dynamic input
+        input clk100,
+        input reset,
+        input data_in,
+        input [1:0] state,
+        
+        output reg [15:0] excited_count, ground_count, line_count
+    );
+    
+    parameter GROUND_STATE = 2'b01;
+    parameter EXCITED_STATE = 2'b10;
+    parameter CLASSIFY_LINE = 2'b11;
+    parameter ERROR = 2'b00;
+    
+    initial begin
+        excited_count = 0;
+        ground_count = 0;
+        line_count = 0;
+    end
+
+    always @(posedge clk100) begin
+        if(reset) begin
+            excited_count <= 16'b0;
+            ground_count <= 16'b0;
+            line_count <= 16'b0;
+        end
+        else begin
+            if(data_in) begin
+                case(state)
+                
+                    GROUND_STATE: ground_count <= ground_count + 1;
+                    
+                    EXCITED_STATE: excited_count <= excited_count + 1;
+                    
+                    CLASSIFY_LINE: line_count <= line_count + 1;
+                    
+                    ERROR: begin ; end 
+                
+                endcase
+            end
+        end
+    end 
+endmodule
+
+module classify_master(
+        input clk100,
+        input [15:0] num_data_pts,
+        
+        input data_in, // indicates if new i,q data is coming in 
+        input signed [31:0] i_val, q_val, // pt to be classified
+        
+        input stream_mode, // 1 to stream classifications as they come in, 0 to report counts at end
+        
+        // static input
+        input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
+        // vector from origin with slope perpendicular to line, pts in direction of excited state
+        input signed [31:0] i_vec_perp, q_vec_perp,
+        
+        output reg data_output_trigger,
+        output reg [79:0] fpga_output
+    );
+    
+    // classify output
+    wire [1:0] state;
+    wire valid_class_pt;
+    parameter GROUND_STATE = 2'b01;
+    parameter EXCITED_STATE = 2'b10;
+    parameter CLASSIFY_LINE = 2'b11;
+    parameter ERROR = 2'b00;
+    
+    // classify_count input/output
+    reg reset;
+    reg [15:0] data_pt_count = 0;
+    wire [15:0] excited_count;
+    wire [15:0] ground_count;
+    wire [15:0] line_count;
+    
+    reg [2:0] count_mode;
+    parameter COUNT = 2'b00; 
+    parameter OUTPUT_FINAL = 2'b01;
+    parameter RESET = 2'b10;
+    
+    initial begin 
+        count_mode = COUNT;
+        data_output_trigger = 0;
+        fpga_output = 0;
+    end
+    
+    always @(posedge clk100) begin
+        // output values as they come in
+        if(stream_mode) begin
+            fpga_output <= {112'b0, valid_class_pt, 13'b0, state};
+        end
+        
+        // output values while updating and signal when finished
+        else begin
+            case(count_mode)
+            
+                COUNT: begin
+                    reset <= 0;
+                    data_output_trigger <= 0;
+                    if(data_pt_count < num_data_pts-1) begin
+                        fpga_output <= {16'b0, data_pt_count, excited_count, ground_count, line_count};
+                        reset <= 0;
+                        if(valid_class_pt) data_pt_count <= data_pt_count + 1;
+                    end
+                    else count_mode <= OUTPUT_FINAL;
+                end
+                
+                OUTPUT_FINAL: begin
+                    data_output_trigger <= 1;
+                    fpga_output <= {16'd0, data_pt_count, excited_count, ground_count, line_count};
+                    count_mode <= RESET;
+                end
+                
+                RESET: begin
+                    reset <= 1;
+                    data_output_trigger <= 0;
+                    data_pt_count <= 0;
+                    fpga_output <= 0;
+                    count_mode <= COUNT;
+                end
+                
+                default count_mode <= RESET;
+                
+            endcase
+        end
+    end
+    
+    classify lin_class(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), 
+                       .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), .i_vec_perp(i_vec_perp), 
+                       .q_vec_perp(q_vec_perp), .state(state), .valid_output(valid_class_pt));
+    
+    classify_count bin(.clk100(clk100), .reset(reset),.data_in(valid_class_pt), .state(state),
+                       .excited_count(excited_count), .ground_count(ground_count), .line_count(line_count));
+    
+endmodule
+
+
+// FSM to tie it all together
+module analyze_fsm(
+    input clk100,
+    
+    //config params
+    input [1:0] analyze_mode, // fsm state
+    input [15:0] num_data_pts, // total number of points
+    input output_mode, // stream or no stream?
+       
+    
+    // i-q data parameters
+    input data_in,
+    input signed [31:0] i_val, q_val,
+
+    // histogram inputs 
+    input [7:0] i_bin_num, q_bin_num, // number of bins on each axis
+    input [15:0] i_bin_width, q_bin_width, // bin width on each axis
+    input [15:0] i_min, q_min, // origin pt of 0,0 bin
+
+    // classification inputs
+    input signed [31:0] i_vec_perp, q_vec_perp,
+    input signed [31:0] i_pt_line, q_pt_line, 
+
+    // output data
+    output reg [4:0] data_output_trigger,
+    output reg [79:0] output_channels);
+
+    // define states
+    parameter DATA_DUMP_MODE = 2'b00;
+    parameter CLASSIFY_MODE = 2'b01;
+    parameter HIST2D_MODE = 2'b11;
+
+    // for reading output of different modules
+    wire [79:0] classify_output;
+    wire classify_trigger;
+    
+    wire [7:0] hist_i_output;
+    wire [7:0] hist_q_output;
+    wire hist2d_trigger;
+
+    // analysis FSM
+    always @(posedge clk100) begin
+        case(analyze_mode)
+
+            DATA_DUMP_MODE: begin
+                if (data_in) output_channels <= {64'd0, i_val, q_val};
+                data_output_trigger <= {4'd0, data_in};
+            end 
+
+            CLASSIFY_MODE: begin
+                output_channels <= classify_output;
+                data_output_trigger <= {4'd0, classify_trigger};
+            end 
+
+            HIST2D_MODE: begin
+                output_channels <= {48'd0,8'd0,hist_i_output,8'd0,hist_q_output};
+                data_output_trigger <= {4'd0, hist2d_trigger};
+            end
+
+            default: output_channels <= 64'b0; 
+
+        endcase
+    end
+    
+    // linear classification control module
+    classify_master lin_class(.clk100(clk100), .num_data_pts(num_data_pts), .data_in(data_in), .i_val(i_val), 
+                              .q_val(q_val), .stream_mode(output_mode), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
+                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output), 
+                              .data_output_trigger(classify_trigger));
+    
+    // 2D histogram control module
+    /*hist2d_master hist2d_sensei(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .output_mode(output_mode),
+                         .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), 
+                         .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .data_out(hist2d), .fpga_output(hist2d_output));*/
+    
+    hist2d_pt_to_bin conv(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), 
+                           .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), 
+                           .q_min(q_min), .i_q_found(hist2d_trigger), .i_bin_coord(hist_i_output), .q_bin_coord(hist_q_output));
+                           //.mem_read_val(), .mem_address(), .mem_write(), .mem_reset(), .mem_write_val());
+    
+endmodule // analyze_fsm
+
+// FOR IMPLEMENTING HISTOGRAM CONSTRUCTION INSIDE FPGA
+
+
+/*
 // histogram memory (for storing bin_counts)
 module hist2d_bram (
         //dynamic input
@@ -392,115 +811,8 @@ module hist2d_bin_out_multiple(
     
 endmodule
 
-// takes in i,q point and finds bin
-// outputs bin and saves to hist_2d_memory
-module hist2d_pt_to_bin(
-        // dynamic input
-        input clk100,
-        input data_in,
-        input signed [31:0] i_val, q_val,
-        
-        // static input (from config)
-        input [7:0] i_bin_num, q_bin_num, // number of bins along each axis (value must be in range 1-63)
-        input [15:0] i_bin_width, q_bin_width, // width of a bin along a given axis
-        input signed [15:0] i_min, q_min, // bin origin
-        
-        // for accessing histogram memory
-        input [15:0] mem_read_val,
-        output [15:0] mem_address, 
-        output mem_write,
-        output mem_reset,
-        output [15:0] mem_write_val,
-        
-        output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
-        output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
-        output reg [7:0] q_bin_coord // can have up to 255 bins along q direction (256th bin counts # outside range) 
-    );
-    
-    wire i_bin_found; // boolean: 1 when bin # for i data pt is found
-    wire [7:0] i_bin_val;
-    reg [7:0] i_bin_store; 
-    
-    wire q_bin_found; // boolean: 1 when bin # for q data pt is found
-    wire [7:0] q_bin_val;
-    reg [7:0] q_bin_store;
-
-    reg [1:0] hist_state; // fsm to do 2d hist sequentially
-    parameter SEARCHING = 2'b00;
-    parameter ONE_FOUND = 2'b01;
-    parameter TWO_FOUND = 2'b10;
-    parameter SEARCH_RESET = 2'b11;
-    
-    reg store_data = 0;
-
-    initial begin
-        hist_state = SEARCH_RESET;
-    end
-
-    always @(posedge clk100) begin
-        case(hist_state) 
-            SEARCHING: begin
-                if(i_bin_found && q_bin_found) begin
-                    hist_state <= TWO_FOUND;
-                    i_bin_store <= i_bin_val;
-                    q_bin_store <= q_bin_val;
-                end
-                else if(i_bin_found) begin
-                    hist_state <= ONE_FOUND;
-                    i_bin_store <= i_bin_val;
-                end
-                else if(q_bin_found) begin
-                    hist_state <= ONE_FOUND;
-                    q_bin_store <= q_bin_val;
-                end
-            end
-            
-            ONE_FOUND: begin
-                if(i_bin_found) begin
-                    hist_state <= TWO_FOUND;
-                    i_bin_store <= i_bin_val;
-                end
-                else if(q_bin_found) begin
-                    hist_state <= TWO_FOUND;
-                    q_bin_store <= q_bin_val;
-                end
-            end
-            
-            TWO_FOUND: begin
-                i_bin_coord <= i_bin_store;
-                q_bin_coord <= q_bin_store;
-                i_q_found <= 1;
-                store_data <= 1;
-                hist_state <= SEARCH_RESET;
-            end
-            
-            SEARCH_RESET: begin
-                i_bin_coord <= 0;
-                q_bin_coord <= 0;
-                store_data <= 0;
-                i_q_found <= 0;
-                if(data_in) hist_state <= SEARCHING;
-            end
-            
-        endcase
-        
-    end
-    
-    // perform binary search along i axis
-    bin_binary_search i_search(.clk100(clk100), .data_in(data_in), .value(i_val), .num_bins(i_bin_num), 
-                               .bin_width(i_bin_width), .origin(i_min), .binned(i_bin_found), .current(i_bin_val));
-    
-    // perform binary search along q axis
-    bin_binary_search q_search(.clk100(clk100), .data_in(data_in), .value(q_val), .num_bins(q_bin_num), 
-                               .bin_width(q_bin_width), .origin(q_min), .binned(q_bin_found), .current(q_bin_val));
-    
-    // save values to histogram memory                           
-    hist2d_store_bin store_vals(.clk100(clk100),.data_in(store_data),.i_bin_coord(i_bin_coord), .q_bin_coord(q_bin_coord),
-                                 .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .mem_read_val(mem_read_val), .mem_address(mem_address),
-                                 .mem_write(mem_write), .mem_reset(mem_reset), .mem_write_val(mem_write_val));
-    
-endmodule // hist2d
-
+// for when we want to do both streaming and storage
+// (currently only streaming)
 module hist2d_master(
         // dynamic input
         input clk100,
@@ -688,307 +1000,15 @@ module hist2d_master(
     // central bram!                             
     hist2d_bram hist_memory(.clk100(clk100), .address(mem_address), .write(mem_write), .reset(mem_reset), .write_val(mem_write_val), .read_val(mem_read_val), .extended_read_val(extended_read_val));
 
-endmodule
+endmodule */
 
 
-// perform linear classification of data points
-module classify(
-    // dynamic input
-    input clk100,
-    input data_in, // indicates if new i,q data is coming in 
-    input signed [31:0] i_val, q_val, // pt to be classified
-    
-    // static input
-    input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
-    // vector from origin with slope perpendicular to line, pts in direction of excited state
-    input signed [31:0] i_vec_perp, q_vec_perp,
-
-    // classified state of input 
-    output reg [1:0] state,
-    output reg valid_output); // boolean: 1 when there is valid output
-    
-    reg signed [31:0] i_vec_pt, q_vec_pt; // vector from origin to pt to classify
-
-    reg signed [63:0] dot_product;
-
-    // output state parameters
-    parameter GROUND_STATE = 2'b01;
-    parameter EXCITED_STATE = 2'b10;
-    parameter CLASSIFY_LINE = 2'b11;
-    parameter ERROR = 2'b00;
-    
-    reg [1:0] comp_state; // fsm to sequentially perform computation steps
-    parameter DOT_PRODUCT = 2'b00;
-    parameter CLASSIFY = 2'b01;
-    parameter RESET = 2'b10;
-    
-    initial begin 
-        comp_state <= RESET;
-    end
-    
-    // NOTE: MIGHT NEED TO ADD BUFER STATES TO ACCOUNT FOR OPERATION LAG (IF OPS EXCEED CLOCK CYCLE)
-    always @(posedge clk100) begin
-        case(comp_state)
-            
-            DOT_PRODUCT: begin
-                dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
-                comp_state <= CLASSIFY;
-            end
-            
-            CLASSIFY: begin
-                // EXCITED STATE CLASSIFICATION
-                if(dot_product>0) begin 
-                    state <= EXCITED_STATE;
-                    valid_output <= 1;
-                end
-                // GROUND STATE CLASSIFICATION
-                else if (dot_product<0) begin
-                    state <= GROUND_STATE;
-                    valid_output <= 1;
-                end
-                // PT ON CLASSIFICATION LINE
-                else if (dot_product==0) begin
-                    state <= CLASSIFY_LINE;
-                    valid_output <= 1;
-                end
-                // error case
-                else begin 
-                    state <= ERROR;
-                end
-                comp_state <= RESET;
-            end
-            
-            RESET: begin 
-                valid_output <= 0;
-                if(data_in) begin
-                    i_vec_pt <= i_val - i_pt_line;
-                    q_vec_pt <= q_val - q_pt_line;
-                    comp_state <= DOT_PRODUCT;
-                end
-            end
-            
-            default: comp_state <= RESET;
-        
-        endcase
-
-    end
-
-endmodule // classify
-
-// keeps running count of number of points in each of classification states
-module classify_count(
-        // dynamic input
-        input clk100,
-        input reset,
-        input data_in,
-        input [1:0] state,
-        
-        output reg [15:0] excited_count, ground_count, line_count
-    );
-    
-    parameter GROUND_STATE = 2'b01;
-    parameter EXCITED_STATE = 2'b10;
-    parameter CLASSIFY_LINE = 2'b11;
-    parameter ERROR = 2'b00;
-    
-    initial begin
-        excited_count = 0;
-        ground_count = 0;
-        line_count = 0;
-    end
-
-    always @(posedge clk100) begin
-        if(reset) begin
-            excited_count <= 16'b0;
-            ground_count <= 16'b0;
-            line_count <= 16'b0;
-        end
-        else begin
-            if(data_in) begin
-                case(state)
-                
-                    GROUND_STATE: ground_count <= ground_count + 1;
-                    
-                    EXCITED_STATE: excited_count <= excited_count + 1;
-                    
-                    CLASSIFY_LINE: line_count <= line_count + 1;
-                    
-                    ERROR: begin ; end 
-                
-                endcase
-            end
-        end
-    end 
-endmodule
-
-module classify_master(
-        input clk100,
-        input [15:0] num_data_pts,
-        
-        input data_in, // indicates if new i,q data is coming in 
-        input signed [31:0] i_val, q_val, // pt to be classified
-        
-        input stream_mode, // 1 to stream classifications as they come in, 0 to report counts at end
-        
-        // static input
-        input signed [31:0] i_pt_line, q_pt_line, // pt on classification line
-        // vector from origin with slope perpendicular to line, pts in direction of excited state
-        input signed [31:0] i_vec_perp, q_vec_perp,
-        
-        output reg data_output_trigger,
-        output reg [127:0] fpga_output
-    );
-    
-    // classify output
-    wire [1:0] state;
-    wire valid_class_pt;
-    parameter GROUND_STATE = 2'b01;
-    parameter EXCITED_STATE = 2'b10;
-    parameter CLASSIFY_LINE = 2'b11;
-    parameter ERROR = 2'b00;
-    
-    // classify_count input/output
-    reg reset;
-    reg [15:0] data_pt_count = 0;
-    wire [15:0] excited_count;
-    wire [15:0] ground_count;
-    wire [15:0] line_count;
-    
-    reg [2:0] count_mode;
-    parameter COUNT = 2'b00; 
-    parameter OUTPUT_FINAL = 2'b01;
-    parameter RESET = 2'b10;
-    
-    initial begin 
-        count_mode = COUNT;
-        fpga_output = 0;
-    end
-    
-    always @(posedge clk100) begin
-        // output values as they come in
-        if(stream_mode) begin
-            fpga_output <= {112'b0, valid_class_pt, 13'b0, state};
-        end
-        
-        // output values while updating and signal when finished
-        else begin
-            case(count_mode)
-            
-                COUNT: begin
-                    reset <= 0;
-                    data_output_trigger <= 0;
-                    if(data_pt_count < num_data_pts-1) begin
-                        fpga_output <= {16'b0, data_pt_count, excited_count, ground_count, line_count};
-                        reset <= 0;
-                        if(valid_class_pt) data_pt_count <= data_pt_count + 1;
-                    end
-                    else count_mode <= OUTPUT_FINAL;
-                end
-                
-                OUTPUT_FINAL: begin
-                    data_output_trigger <= 1;
-                    fpga_output <= {16'd0, data_pt_count, excited_count, ground_count, line_count};
-                    count_mode <= RESET;
-                end
-                
-                RESET: begin
-                    reset <= 1;
-                    data_output_trigger <= 0;
-                    data_pt_count <= 0;
-                    fpga_output <= 0;
-                    count_mode <= COUNT;
-                end
-                
-                default count_mode <= RESET;
-                
-            endcase
-        end
-    end
-    
-    classify lin_class(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), 
-                       .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), .i_vec_perp(i_vec_perp), 
-                       .q_vec_perp(q_vec_perp), .state(state), .valid_output(valid_class_pt));
-    
-    classify_count bin(.clk100(clk100), .reset(reset),.data_in(valid_class_pt), .state(state),
-                       .excited_count(excited_count), .ground_count(ground_count), .line_count(line_count));
-    
-endmodule
 
 
-// FSM to tie it all together
-module analyze_fsm(
-    input clk100,
-    
-    //config params
-    input [1:0] analyze_mode, // fsm state
-    input [15:0] num_data_pts, // total number of points
-    input ouput_mode, // stream or no stream?
-       
-    
-    // i-q data parameters
-    input data_in,
-    input signed [31:0] i_val, q_val,
 
-    // histogram inputs 
-    input [7:0] i_bin_num, q_bin_num, // number of bins on each axis
-    input [15:0] i_bin_width, q_bin_width, // bin width on each axis
-    input [15:0] i_min, q_min, // origin pt of 0,0 bin
 
-    // classification inputs
-    input signed [31:0] i_vec_perp, q_vec_perp,
-    input signed [31:0] i_pt_line, q_pt_line, 
 
-    // output data
-    output reg data_output_trigger,
-    output reg [127:0] output_channels);
 
-    // define states
-    parameter DATA_DUMP_MODE = 2'b00;
-    parameter CLASSIFY_MODE = 2'b01;
-    parameter HIST2D_MODE = 2'b11;
-
-    // for reading output of different modules
-    wire [127:0] classify_output;
-    wire classify_trigger;
-    wire [127:0] hist2d_output;
-    wire hist2d_trigger;
-
-    // analysis FSM
-    always @(posedge clk100) begin
-        case(analyze_mode)
-
-            DATA_DUMP_MODE: begin
-                if (data_in) output_channels <= {64'd0, i_val, q_val};
-                data_output_trigger <= data_in;
-            end 
-
-            CLASSIFY_MODE: begin
-                output_channels <= classify_output;
-                data_output_trigger <= classify_trigger;
-            end 
-
-            HIST2D_MODE: begin
-                output_channels <= hist2d_output;
-                data_output_trigger <= hist2d_trigger;
-            end
-
-            default: output_channels <= 64'b0; 
-
-        endcase
-    end
-    
-    // linear classification control module
-    classify_master lin_class(.clk100(clk100), .num_data_pts(num_data_pts), .data_in(data_in), .i_val(i_val), 
-                              .q_val(q_val), .stream_mode(output_mode), .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
-                              .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp), .fpga_output(classify_output), 
-                              .data_output_trigger(classify_trigger));
-    
-    // 2D histogram control module
-    hist2d_master hist2d_sensei(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .output_mode(output_mode),
-                         .num_data_pts(num_data_pts), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), 
-                         .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .data_out(hist2d), .fpga_output(hist2d_output));
-    
-endmodule // analyze_fsm
 
 
 
