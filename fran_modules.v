@@ -126,7 +126,8 @@ module hist2d_bram (
     );
     
     // store 2d array in 1d bram, by making i LSB and q MSB
-    reg [15:0] hist2d [255*255:0]; // bin vals BRAM
+    //reg [15:0] hist2d [255*255:0]; // bin vals BRAM
+    reg [15:0] hist2d [200*200:0]; // bin vals BRAM
     
     integer j;
     
@@ -406,10 +407,10 @@ module hist2d_pt_to_bin(
         
         // for accessing histogram memory
         input [15:0] mem_read_val,
-        output reg [15:0] mem_address, 
-        output reg mem_write,
-        output reg mem_reset,
-        output reg [15:0] mem_write_val,
+        output [15:0] mem_address, 
+        output mem_write,
+        output mem_reset,
+        output [15:0] mem_write_val,
         
         output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
         output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 

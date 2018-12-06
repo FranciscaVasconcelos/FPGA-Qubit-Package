@@ -109,7 +109,7 @@ module demod_main(
     
     
     
-    top_main top_module(
+    top_main tm(
         // inputs
         .clk100(clk), .reset(rst), .config_reset(data3_in_sdi_dataStreamFCx5_S_data_0[0]),
         // I input values
