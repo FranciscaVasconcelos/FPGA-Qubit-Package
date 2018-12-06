@@ -10,66 +10,108 @@ module config_params(
     input clk100,
     input reset,
     input config_reset,
-    // update values
-    input [4:0] demod_freq_new, // freq divided by 10 MHz
-    input [4:0] [9:0] [5:0] demod_mod50_LUT_new, // LUT containing values for mod 50 updated for each value of demod_freq
-    input [10:0] sample_length_new, // max 20 us
-    input [5:0] sample_freq_new, // min 8 MHz
-    input [9:0] delay_time_new, // max 10 us
-    input [1:0] analyze_mode_new, // data dump, binning, classifier
-    input [15:0] x_bin_width_new, // width of bin in x_direction 
-    input [15:0] y_bin_width_new, // width of bin in y_direction 
-    input [4:0] x_bin_num_new, // number of bins along x_direction 
-    input [4:0] y_bin_num_new, // number of bins along y_direction 
-    input signed [15:0] x_bin_min_new, // start of bins x_direction 
-    input signed [15:0] y_bin_min_new, // start of bins y_direction
+    // control inputs
+    input [13:0] MEM_sdi_mem_S_address, // parameter location
+    input MEM_sdi_mem_S_wrEn, // write enable
+    input [32:0] MEM_sdi_mem_S_wrData, // parameter value
+
     // outputs
     output reg [4:0] demod_freq, // freq divided by 10 MHz
-    output reg [4:0] [9:0] [5:0] demod_mod50_LUT, // LUT containing values for mod 50 updated for each value of demod_freq
+    output reg [9:0] [4:0] [5:0] demod_mod50_LUT, // LUT containing values for mod 50 updated for each value of demod_freq
     output reg [10:0] sample_length, // max 20 us
     output reg [5:0] sample_freq, // min 8 MHz
     output reg [13:0] delay_time, // max 163 us
     output reg [1:0] analyze_mode, // data dump, binning, classifier
-    output reg [15:0] x_bin_width, // width of bin in x_direction
-    output reg [15:0] y_bin_width, // width of bin in y_direction
-    output reg [4:0] x_bin_num, // number of bins along x_direction
-    output reg [4:0] y_bin_num, // number of bins along y_direction
-    output reg signed [15:0] x_bin_min, // start of bins x_direction
-    output reg signed [15:0] y_bin_min // start of bins y_direction
-    );
+    output reg [15:0] i_bin_width, q_bin_width, // width of bin in i, q_direction
+    output reg [4:0] i_bin_num, q_bin_num, // number of bins along i, q_direction
+    output reg signed [15:0] i_bin_min, q_bin_min, // start of bins i, q_direction
+    output reg signed [31:0] i_vec_perp, q_vec_perp, // perpendicular classifier lines
+    output reg signed [31:0] i_pt_line, q_pt_line,
+    output output_mode);
 
     always @(posedge clk100) begin
         if (reset) begin // reset to default
             demod_freq <= 5'd5; // 50 MHz
-            demod_mod50_LUT <= {{6'd45, 6'd20, 6'd45, 6'd20, 6'd45, 6'd20, 6'd45, 6'd20, 6'd45, 6'd20},
-                                {6'd40, 6'd15, 6'd40, 6'd15, 6'd40, 6'd15, 6'd40, 6'd15, 6'd40, 6'd15},
-                                {6'd35, 6'd10, 6'd35, 6'd10, 6'd35, 6'd10, 6'd35, 6'd10, 6'd35, 6'd10},
-                                {6'd30, 6'd05, 6'd30, 6'd05, 6'd30, 6'd05, 6'd30, 6'd05, 6'd30, 6'd05},
-                                {6'd25, 6'd00, 6'd25, 6'd00, 6'd25, 6'd00, 6'd25, 6'd00, 6'd25, 6'd00}};
-            sample_length <= 11'd2000; // 20 us
+            demod_mod50_LUT <= {{6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
+                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
+                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
+                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
+                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
+                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
+                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
+                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
+                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
+                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00}};
+            sample_length <= 11'd2000;
             sample_freq <= 6'd5; // 100 MHz
             delay_time <= 14'd5000; // 50 us
             analyze_mode <= 2'd0;
-            x_bin_width <= 16'd100;
-            y_bin_width <= 16'd100;
-            x_bin_num <= 5'd10;
-            y_bin_num <= 5'd10;
-            x_bin_min <= 16'd0;
-            y_bin_min <= 16'd0; 
+            i_bin_width <= 16'd100;
+            q_bin_width <= 16'd100;
+            i_bin_num <= 5'd10;
+            q_bin_num <= 5'd10;
+            i_bin_min <= 16'd0;
+            q_bin_min <= 16'd0;
+            i_vec_perp <= 32'd0;
+            q_vec_perp <= 32'd0;
+            i_pt_line <= 32'd0;
+            q_pt_line <= 32'd0;
         end
-        else if (config_reset) begin // reconfigure values
-            demod_freq <= demod_freq_new;
-            demod_mod50_LUT <= demod_mod50_LUT_new;
-            sample_length <= sample_length_new;
-            sample_freq <= sample_freq_new;
-            delay_time <= delay_time_new;
-            analyze_mode <= analyze_mode_new;
-            x_bin_width <= x_bin_width_new;
-            y_bin_width <= y_bin_width_new;
-            x_bin_num <= x_bin_num_new;
-            y_bin_num <= y_bin_num_new;
-            x_bin_min <= x_bin_min_new;
-            y_bin_min <= y_bin_min_new; 
+        else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values
+            // search for correct address
+            if (MEM_sdi_mem_S_address == 14'd0)
+                demod_freq <= MEM_sdi_mem_S_wrData[4:0];
+
+            else if (MEM_sdi_mem_S_address == 14'd10)
+                demod_mod50_LUT[0] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd11)
+                demod_mod50_LUT[1] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd12)
+                demod_mod50_LUT[2] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd13)
+                demod_mod50_LUT[3] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd14)
+                demod_mod50_LUT[4] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd15)
+                demod_mod50_LUT[5] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd16)
+                demod_mod50_LUT[6] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd17)
+                demod_mod50_LUT[7] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd18)
+                demod_mod50_LUT[8] <= MEM_sdi_mem_S_wrData[29:0];
+            else if (MEM_sdi_mem_S_address == 14'd19)
+                demod_mod50_LUT[9] <= MEM_sdi_mem_S_wrData[29:0];
+
+            else if (MEM_sdi_mem_S_address == 14'd20)
+                sample_length <= MEM_sdi_mem_S_wrData[10:0];
+            else if (MEM_sdi_mem_S_address == 14'd21)
+                sample_freq <= MEM_sdi_mem_S_wrData[5:0];
+            else if (MEM_sdi_mem_S_address == 14'd22)
+                delay_time <= MEM_sdi_mem_S_wrData[13:0];
+
+            else if (MEM_sdi_mem_S_address == 14'd30)
+                analyze_mode <= MEM_sdi_mem_S_wrData[1:0];
+            else if (MEM_sdi_mem_S_address == 14'd31)
+                i_bin_width <= MEM_sdi_mem_S_wrData[15:0];
+            else if (MEM_sdi_mem_S_address == 14'd32)
+                q_bin_width <= MEM_sdi_mem_S_wrData[15:0];
+            else if (MEM_sdi_mem_S_address == 14'd33)
+                i_bin_num <= MEM_sdi_mem_S_wrData[5:0];
+            else if (MEM_sdi_mem_S_address == 14'd34)
+                q_bin_num <= MEM_sdi_mem_S_wrData[5:0];
+            else if (MEM_sdi_mem_S_address == 14'd35)
+                i_bin_min <= MEM_sdi_mem_S_wrData[15:0];
+            else if (MEM_sdi_mem_S_address == 14'd36)
+                q_bin_min <= MEM_sdi_mem_S_wrData[15:0];
+            else if (MEM_sdi_mem_S_address == 14'd37)
+                i_vec_perp <= MEM_sdi_mem_S_wrData[31:0];
+            else if (MEM_sdi_mem_S_address == 14'd38)
+                q_vec_perp <= MEM_sdi_mem_S_wrData[31:0];
+            else if (MEM_sdi_mem_S_address == 14'd39)
+                i_pt_line <= MEM_sdi_mem_S_wrData[31:0];
+            else if (MEM_sdi_mem_S_address == 14'd40)
+                q_pt_line <= MEM_sdi_mem_S_wrData[31:0];
         end
     end
 
@@ -138,7 +180,7 @@ module sampler(
     input signed [4:0] [15:0] data_i_in, // packed
     input signed [4:0] [15:0] data_q_in, // packed
     input [4:0] demod_freq,
-    input [4:0] [9:0] [5:0] demod_mod50_LUT,
+    input [9:0] [4:0] [5:0] demod_mod50_LUT,
     input [10:0] sample_length,
     input [5:0] sample_skip, // equal to sample_freq
     // outputs
@@ -188,25 +230,25 @@ module sampler(
                         // which phase values we sample depends on value of sample_skip
                         if (sample_skip == 1) begin // every time step
                             phase_vals[0] <= 0; // phase_vals set at next clock cycle
-                            phase_vals[1] <= demod_mod50_LUT[1][0];
-                            phase_vals[2] <= demod_mod50_LUT[2][0];
-                            phase_vals[3] <= demod_mod50_LUT[3][0];
-                            phase_vals[4] <= demod_mod50_LUT[4][0];
+                            phase_vals[1] <= demod_mod50_LUT[0][1];
+                            phase_vals[2] <= demod_mod50_LUT[0][2];
+                            phase_vals[3] <= demod_mod50_LUT[0][3];
+                            phase_vals[4] <= demod_mod50_LUT[0][4];
                             skip_hold <= 0;
                         end
                         else if (sample_skip == 2) begin // every other
                             phase_vals[0] <= 0; // the first value is always sampled, but the phase = 0
                             phase_vals[1] <= 0;
-                            phase_vals[2] <= demod_mod50_LUT[2][0];
+                            phase_vals[2] <= demod_mod50_LUT[0][2];
                             phase_vals[3] <= 0;
-                            phase_vals[4] <= demod_mod50_LUT[4][0];
+                            phase_vals[4] <= demod_mod50_LUT[0][4];
                             skip_hold <= 1;
                         end
                         else if (sample_skip == 3) begin // every third
                             phase_vals[0] <= 0; // the first value is always sampled, but the phase = 0
                             phase_vals[1] <= 0;
                             phase_vals[2] <= 0;
-                            phase_vals[3] <= demod_mod50_LUT[3][0];
+                            phase_vals[3] <= demod_mod50_LUT[0][3];
                             phase_vals[4] <= 0;
                             skip_hold <= 1;
                         end
@@ -215,7 +257,7 @@ module sampler(
                             phase_vals[1] <= 0;
                             phase_vals[2] <= 0;
                             phase_vals[3] <= 0;
-                            phase_vals[4] <= demod_mod50_LUT[4][0];
+                            phase_vals[4] <= demod_mod50_LUT[0][4];
                             skip_hold <= 3;
                         end
                     end // if (sample_skip < 5)
@@ -248,7 +290,7 @@ module sampler(
                             if ((skip_hold == i) ||
                                ((skip_hold + sample_skip) == i) || ((skip_hold + 2 * sample_skip) == i) ||
                                ((skip_hold + 3 * sample_skip) == i) || ((skip_hold + 4 * sample_skip) == i))
-                                phase_vals[i] <= demod_mod50_LUT[i][count_mult];
+                                phase_vals[i] <= demod_mod50_LUT[count_mult][i];
                             else
                                 phase_vals[i] <= 0;
                         end
@@ -259,7 +301,7 @@ module sampler(
                         // need to determine which value
                         // all other set to zero
                         for (j = 0; j < 5; j = j + 1) begin
-                            phase_vals[j] <= (skip_hold == j) ? demod_mod50_LUT[j][count_mult] : 0;
+                            phase_vals[j] <= (skip_hold == j) ? demod_mod50_LUT[count_mult][j] : 0;
                         end
                         skip_hold <= sample_skip - (5 - skip_hold); // redefine skip_hold
                     end

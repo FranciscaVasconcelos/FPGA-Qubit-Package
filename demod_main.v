@@ -96,17 +96,21 @@ module demod_main(
     wire [31:0] i_val;
     wire [31:0] q_val;
     wire [1:0] analyze_mode;
-    wire [15:0] x_bin_width;
-    wire [15:0] y_bin_width;
-    wire [4:0] x_bin_num;
-    wire [4:0] y_bin_num;
-    wire signed [15:0] x_bin_min;
-    wire signed [15:0] y_bin_min;
+    wire [15:0] i_bin_width, q_bin_width;
+    wire [4:0] i_bin_num, q_bin_num;
+    wire signed [15:0] i_bin_min, q_bin_min;
+    wire signed [31:0] i_vec_perp, q_vec_perp;
+    wire signed [31:0] i_pt_line, q_pt_line;
+    wire output_mode;
     
     
     top_main top_module(
         // inputs
-        .clk100(clk), .reset(rst), .config_reset(data3_in_sdi_dataStreamFCx5_S_data_0[0]),
+        .clk100(clk), .reset(rst),
+        // config control
+        .MEM_sdi_mem_S_address(MEM_sdi_mem_S_address),
+        .MEM_sdi_mem_S_wrEn(MEM_sdi_mem_S_wrEn),
+        .MEM_sdi_mem_S_wrData(MEM_sdi_mem_S_wrData),
         // I input values
         .data0_in_0(data0_in_sdi_dataStreamFCx5_S_data_0),
         .data0_in_1(data0_in_sdi_dataStreamFCx5_S_data_1),
@@ -126,8 +130,11 @@ module demod_main(
         .i_val(i_val), .q_val(q_val),
         // configurated prameters to pass to lower modules
         .analyze_mode(analyze_mode),
-        .x_bin_width(x_bin_width), .y_bin_width(y_bin_width),
-        .x_bin_num(x_bin_num), .y_bin_num(y_bin_num),
-        .x_bin_min(x_bin_min), .y_bin_min(y_bin_min));
+        .x_bin_width(i_bin_width), .y_bin_width(q_bin_width),
+        .x_bin_num(i_bin_num), .y_bin_num(q_bin_num),
+        .x_bin_min(i_bin_min), .y_bin_min(q_bin_min),
+        .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp),
+        .i_pt_line(i_pt_line), .q_pt_line(q_pt_line),
+        .output_mode(output_mode));
 
 endmodule // demod_top
