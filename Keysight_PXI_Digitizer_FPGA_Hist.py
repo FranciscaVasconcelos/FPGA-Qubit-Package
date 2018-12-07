@@ -77,6 +77,8 @@ class Driver(LabberDriver):
             Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Clean_2018-05-31T22_22_11.sbp')
         elif self.fpga_config == 'FPGA I/Q and signals (slow)' or self.fpga_config == 'Only FPGA I/Q (fast)':            
             Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v4_IQx5_2018-09-02T19_14_50.sbp')
+        elif self.fpga_config == 'FPGA QB package (alpha)':            
+            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_post_deletion_2018-12-06T16_59_21.sbp')
 
         #Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v3_IQx5_2018-06-12T20_37_04.sbp')
         #Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v3_IQx5_2018-06-13T19_46_49.sbp')
