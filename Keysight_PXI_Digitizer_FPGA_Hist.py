@@ -18,7 +18,7 @@ class Driver(LabberDriver):
         self.num_of_demods = 5
         #self.demod_sample_size = self.num_of_demods * 15
         self.demod_sample_size = 100
-        
+
         # set time step and resolution
         self.nBit = 16
         self.bitRange = float(2**(self.nBit-1)-1)
