@@ -73,7 +73,7 @@ module config_params(
             q_vec_perp <= 32'd1;
             i_pt_line <= 32'd0;
             q_pt_line <= 32'd1;
-            output_mode <= 1'd0;
+            output_mode <= 1'd1;
             num_data_pts <= 16'd3;
         end
         else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values

@@ -406,7 +406,7 @@ module classify_master(
         end
         else begin
             if(stream_mode) begin
-                fpga_output <= {64'b0, 13'b0, state};
+                fpga_output <= {64'b0, 14'b0, state[1:0]};
                 
                 case(stream_state)
                

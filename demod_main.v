@@ -110,7 +110,7 @@ module demod_main(
 
     analyze_fsm analyze_module(
           
-        .clk100(clk),
+        .clk100(clk), .system_reset(rst),
         
         //config params
         .analyze_mode(analyze_mode), // fsm state
