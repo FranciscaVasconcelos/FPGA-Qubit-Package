@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-import sys
-sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 
 from BaseDriver import LabberDriver, Error, IdError
 import keysightSD1
 
 import numpy as np
+import math
 import os
+
+import sys
+sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 
 
 class Driver(LabberDriver):
@@ -16,12 +18,11 @@ class Driver(LabberDriver):
         """Perform the operation of opening the instrument connection"""
         # number of demod blocks in the FPGA
         self.num_of_demods = 5
-        #self.demod_sample_size = self.num_of_demods * 15
         self.demod_sample_size = 100
 
         # set time step and resolution
         self.nBit = 16
-        self.bitRange = float(2**(self.nBit-1)-1)
+        self.bitRange = float(2**(self.nBit - 1) - 1)
         # timeout
         self.timeout_ms = int(1000 * self.dComCfg['Timeout'])
         # get PXI chassis
@@ -37,7 +38,7 @@ class Driver(LabberDriver):
         # check that model is supported
         dOptionCfg = self.dInstrCfg['options']
         for validId, validName in zip(dOptionCfg['model_id'], dOptionCfg['model_str']):
-            if AWGPart.find(validId)>=0:
+            if AWGPart.find(validId) >= 0:
                 # id found, stop searching
                 break
         else:
@@ -66,40 +67,26 @@ class Driver(LabberDriver):
             # SIGNADYNE - channel numbers start with 0
             self.ch_index_zero = 0
         self.log('HW:', hw_version)
-        
-        #if self.getValue('Load FPGA'):
-        #    Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v4_IQx5_2018-09-02T19_14_50.sbp')
-        #else:            
-        #    Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Clean_2018-05-31T22_22_11.sbp')
+
         self.fpga_config = self.getValue('FPGA Hardware')
 
-        if self.fpga_config == 'Only signals (no FPGA - very slow)':
-            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Clean_2018-05-31T22_22_11.sbp')
-        elif self.fpga_config == 'FPGA I/Q and signals (slow)' or self.fpga_config == 'Only FPGA I/Q (fast)':            
-            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v4_IQx5_2018-09-02T19_14_50.sbp')
-        elif self.fpga_config == 'FPGA QB package (alpha)':            
+        if self.fpga_config == 'FPGA QB package (alpha)':
             Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_post_deletion_2018-12-06T16_59_21.sbp')
 
-        #Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v3_IQx5_2018-06-12T20_37_04.sbp')
-        #Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v3_IQx5_2018-06-13T19_46_49.sbp')
-        #Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_FPGAFlow_Demod_v3_IQx5_wRef_2018-06-25T13_43_00.sbp')
-
-        if (self.dig.FPGAload(Bitstream)) < 0:   
+        if (self.dig.FPGAload(Bitstream)) < 0:
             raise Error('FPGA not loaded, check FPGA version...')
 
         for n in range(self.num_of_demods):
-            LO_freq = self.getValue('LO freq ' + str(n+1))
-            self.setFPGALOfreq(n+1,LO_freq)
+            LO_freq = self.getValue('LO freq ' + str(n + 1))
+            self.setFPGALOfreq(n + 1, LO_freq)
 
         self.setFPGATrigger()
-        self.smsb_info = np.zeros([self.num_of_demods,4],dtype = 'int16');
-        
-
+        self.setHistParams()
+        self.smsb_info = np.zeros([self.num_of_demods, 4], dtype='int16')
 
     def getHwCh(self, n):
         """Get hardware channel number for channel n. n starts at 0"""
         return n + self.ch_index_zero
-
 
     def performClose(self, bError=False, options={}):
         """Perform the close instrument connection operation"""
@@ -114,14 +101,13 @@ class Driver(LabberDriver):
             # never return error here
             pass
 
-
     def performSetValue(self, quant, value, sweepRate=0.0, options={}):
         """Perform the Set Value instrument operation. This function should
         return the actual value set by the instrument"""
         # start with setting local quant value
         quant.setValue(value)
         # check if channel-specific, if so get channel + name
-        if quant.name.startswith('Ch') and len(quant.name)>6:
+        if quant.name.startswith('Ch') and len(quant.name) > 6:
             ch = int(quant.name[2]) - 1
             name = quant.name[6:]
         else:
@@ -151,16 +137,35 @@ class Driver(LabberDriver):
             imp = int(self.getCmdStringFromValue('Ch%d - Impedance' % (ch + 1)))
             coup = int(self.getCmdStringFromValue('Ch%d - Coupling' % (ch + 1)))
             self.dig.channelInputConfig(self.getHwCh(ch), rang, imp, coup)
-        # FPGA configuration 
+
+        # FPGA configuration
+        FPGA_PcPort_channel = 0
         if quant.name.startswith('LO freq'):
             demod_num = int(quant.name[-1])
-            LO_freq = self.getValue('LO freq ' + str(demod_num))
-            value = self.setFPGALOfreq(demod_num,LO_freq)
-            quant.setValue(value)        
-        elif quant.name in ('Skip time', 'Integration time'):
-            self.setFPGATrigger()
-        return value
+            if demod_num == 1:
+                LO_freq = self.getValue('LO freq ' + str(demod_num))
+                value = self.setFPGALOfreq(demod_num, LO_freq)
+                quant.setValue(value)
 
+        elif quant.name in ('Skip time'):
+            self.setFPGATrigger()
+
+        elif quant.name in ('Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
+                            'I Bin Num', 'Q Bin Num', 'I Bin Min', 'Q Bin Min',
+                            'I Vector Perpendicular', 'Q Vector Perpendicular',
+                            'I Line Point', 'Q Line Point'):
+            self.setHistParams(quant.name)
+
+        elif quant.name in ('Number of samples', 'Sample frequency'):
+            self.setSamplingParams(quant.name)
+
+        elif quant.name in ('Number of Records'):
+            record_num_val = self.getValue(quant.name)
+            record_num = np.zeros((2, 1), dtype=int)
+            record_num[1] = np.int32(record_num_val)
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, record_num, 0x1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        return value
 
     def performGetValue(self, quant, options={}):
         """Perform the Set Value instrument operation. This function should
@@ -207,13 +212,13 @@ class Driver(LabberDriver):
                 elif quant.name.startswith('FPGA Voltage'):
                     return self.demod_output_SSB[demod_num]
                 elif quant.name.startswith('FPGA Single-shot'):
-                    return quant.getTraceDict(self.demod_output_vector_SSB[demod_num][seq_no], dt=1)                
+                    return quant.getTraceDict(self.demod_output_vector_SSB[demod_num][seq_no], dt=1)
                 elif quant.name.startswith('FPGA Single-shot REF'):
-                    return quant.getTraceDict(self.demod_output_vector_ref[demod_num][seq_no], dt=1)                
+                    return quant.getTraceDict(self.demod_output_vector_ref[demod_num][seq_no], dt=1)
                 elif quant.name.startswith('FPGA Voltage NP'):
                     return self.demod_output_NP[demod_num]
                 elif quant.name.startswith('FPGA Single-shot NP'):
-                    return quant.getTraceDict(self.demod_output_vector_NP[demod_num][seq_no], dt=1)                
+                    return quant.getTraceDict(self.demod_output_vector_NP[demod_num][seq_no], dt=1)
             # get traces if first call
             if self.isFirstCall(options):
                 # don't arm if in hardware trig mode
@@ -223,23 +228,23 @@ class Driver(LabberDriver):
                 value = quant.getTraceDict(self.lTrace[ch], dt=self.dt)
             elif quant.name.startswith('FPGA Voltage I'):
                 value = self.demod_output_I[demod_num]
-            elif quant.name.startswith('FPGA Single-shot I'): 
-                value =  quant.getTraceDict(self.demod_output_vector_I[demod_num], dt=1)
+            elif quant.name.startswith('FPGA Single-shot I'):
+                value = quant.getTraceDict(self.demod_output_vector_I[demod_num], dt=1)
             elif quant.name.startswith('FPGA Voltage Q'):
                 value = self.demod_output_Q[demod_num]
-            elif quant.name.startswith('FPGA Single-shot Q'): 
-                value =  quant.getTraceDict(self.demod_output_vector_Q[demod_num], dt=1)
+            elif quant.name.startswith('FPGA Single-shot Q'):
+                value = quant.getTraceDict(self.demod_output_vector_Q[demod_num], dt=1)
             elif quant.name.startswith('FPGA Voltage'):
                 value = self.demod_output_SSB[demod_num]
-            elif quant.name.startswith('FPGA Single-shot'): 
-                value =  quant.getTraceDict(self.demod_output_vector_SSB[demod_num], dt=1)
-            elif quant.name.startswith('FPGA Single-shot REF'): 
-                value =  quant.getTraceDict(self.demod_output_vector_ref[demod_num], dt=1)
+            elif quant.name.startswith('FPGA Single-shot'):
+                value = quant.getTraceDict(self.demod_output_vector_SSB[demod_num], dt=1)
+            elif quant.name.startswith('FPGA Single-shot REF'):
+                value = quant.getTraceDict(self.demod_output_vector_ref[demod_num], dt=1)
             elif quant.name.startswith('FPGA Voltage NP'):
                 return self.demod_output_NP[demod_num]
             elif quant.name.startswith('FPGA Single-shot NP'):
-                return quant.getTraceDict(self.demod_output_vector_NP[demod_num], dt=1)                
-                
+                return quant.getTraceDict(self.demod_output_vector_NP[demod_num], dt=1)
+
         else:
             # for all others, return local value
             value = quant.getValue()
@@ -249,9 +254,9 @@ class Driver(LabberDriver):
     def performArm(self, quant_names, options={}):
         """Perform the instrument arm operation"""
         # make sure we are arming for reading traces, if not return - commented by RoniW
-        #signal_names = ['Ch%d - Signal' % (n + 1) for n in range(4)]
-        #signal_arm = [name in signal_names for name in quant_names]
-        #if not np.any(signal_arm):
+        # signal_names = ['Ch%d - Signal' % (n + 1) for n in range(4)]
+        # signal_arm = [name in signal_names for name in quant_names]
+        # if not np.any(signal_arm):
         #    return
 
         # arm by calling get traces
@@ -279,16 +284,15 @@ class Driver(LabberDriver):
                 lCh.append(n)
                 iChMask += 2**n
         # get current settings
-        #nDemods = int(self.getValue('Number of Demods'))
+        # nDemods = int(self.getValue('Number of Demods'))
         nDemods = self.num_of_demods
-        
-        #nPts = max(int(self.getValue('Number of samples')), self.demod_sample_size)
+
+        # nPts = max(int(self.getValue('Number of samples')), self.demod_sample_size)
 
         if self.fpga_config == 'Only signals (no FPGA - very slow)' or 'FPGA I/Q and signals (slow)':
             nPts = int(self.getValue('Number of samples'))
-        elif self.fpga_config == self.fpga_config == 'Only FPGA I/Q (fast)':            
+        elif self.fpga_config == self.fpga_config == 'Only FPGA I/Q (fast)':
             nPts = int(self.demod_sample_size)
-
 
         nCyclePerCall = int(self.getValue('Records per Buffer'))
         # in hardware loop mode, ignore records and use number of sequences
@@ -307,19 +311,19 @@ class Driver(LabberDriver):
             self.lTrace = [np.array([])] * self.nCh
             self.lTrace_raw = [np.array([])] * self.nCh
             self.lTrace_raw[3] = np.zeros((nSeg * nPts))
-            self.smsb_info_str = [];
-            self.demod_output_vector_I  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.demod_output_I = np.zeros(self.num_of_demods,dtype='complex')
-            self.demod_output_vector_Q  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.demod_output_Q = np.zeros(self.num_of_demods,dtype='complex')
-            self.demod_output_vector_ref  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.demod_output_ref = np.zeros(self.num_of_demods,dtype='complex')
-            self.demod_output_vector_SSB  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.demod_output_SSB = np.zeros(self.num_of_demods,dtype='complex')
-            self.demod_output_vector_NP  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.demod_output_NP = np.zeros(self.num_of_demods,dtype='complex')
-            self.moment_I2  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
-            self.moment_Q2  = np.zeros([self.num_of_demods,nSeg],dtype='complex')
+            self.smsb_info_str = []
+            self.demod_output_vector_I = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.demod_output_I = np.zeros(self.num_of_demods, dtype='complex')
+            self.demod_output_vector_Q = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.demod_output_Q = np.zeros(self.num_of_demods, dtype='complex')
+            self.demod_output_vector_ref = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.demod_output_ref = np.zeros(self.num_of_demods, dtype='complex')
+            self.demod_output_vector_SSB = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.demod_output_SSB = np.zeros(self.num_of_demods, dtype='complex')
+            self.demod_output_vector_NP = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.demod_output_NP = np.zeros(self.num_of_demods, dtype='complex')
+            self.moment_I2 = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.moment_Q2 = np.zeros([self.num_of_demods, nSeg], dtype='complex')
 
             # configure trigger for all active channels
             for nCh in lCh:
@@ -479,92 +483,92 @@ class Driver(LabberDriver):
         accum_length = self.getValue('Integration time')
         nAv = self.getValue('Number of averages')
         lScale = [(self.getRange(ch) / self.bitRange) for ch in range(self.nCh)]
-        demod_temp_I  = np.zeros([self.num_of_demods,nCycle],dtype='complex')
-        demod_temp_Q  = np.zeros([self.num_of_demods,nCycle],dtype='complex')
-        demod_temp_ref  = np.zeros([self.num_of_demods,nCycle],dtype='complex')
+        demod_temp_I = np.zeros([self.num_of_demods, nCycle], dtype='complex')
+        demod_temp_Q = np.zeros([self.num_of_demods, nCycle], dtype='complex')
+        demod_temp_ref = np.zeros([self.num_of_demods, nCycle], dtype='complex')
         self.smsb_info_str = []
-        #nDemods = int(self.getValue('Number of Demods'))
+        # nDemods = int(self.getValue('Number of Demods'))
         nDemods = self.num_of_demods
-        
+
         self.use_phase_ref = self.getValue('Use phase reference signal')
-        
+
         for n in range(nDemods):
-            y1_lsb = self.lTrace_raw[3][np.arange(0 + n*15,nPts*nCycle,nPts)]
-            y1_msb = self.lTrace_raw[3][np.arange(1 + n*15,nPts*nCycle,nPts)]
-            x1_lsb = self.lTrace_raw[3][np.arange(2 + n*15,nPts*nCycle,nPts)]
-            x1_msb = self.lTrace_raw[3][np.arange(3 + n*15,nPts*nCycle,nPts)]
-            y1x1_smsb = self.lTrace_raw[3][np.arange(4 + n*15,nPts*nCycle,nPts)]
+            y1_lsb = self.lTrace_raw[3][np.arange(0 + n * 15, nPts * nCycle, nPts)]
+            y1_msb = self.lTrace_raw[3][np.arange(1 + n * 15, nPts * nCycle, nPts)]
+            x1_lsb = self.lTrace_raw[3][np.arange(2 + n * 15, nPts * nCycle, nPts)]
+            x1_msb = self.lTrace_raw[3][np.arange(3 + n * 15, nPts * nCycle, nPts)]
+            y1x1_smsb = self.lTrace_raw[3][np.arange(4 + n * 15, nPts * nCycle, nPts)]
             x1_smsb = y1x1_smsb.astype('int8')
             y1_smsb = y1x1_smsb.astype('int16') >> 8
-            
-            y2_lsb = self.lTrace_raw[3][np.arange(5 + n*15,nPts*nCycle,nPts)]
-            y2_msb = self.lTrace_raw[3][np.arange(6 + n*15,nPts*nCycle,nPts)]
-            x2_lsb = self.lTrace_raw[3][np.arange(7 + n*15,nPts*nCycle,nPts)]
-            x2_msb = self.lTrace_raw[3][np.arange(8 + n*15,nPts*nCycle,nPts)]
-            y2x2_smsb = self.lTrace_raw[3][np.arange(9 + n*15,nPts*nCycle,nPts)]
+
+            y2_lsb = self.lTrace_raw[3][np.arange(5 + n * 15, nPts * nCycle, nPts)]
+            y2_msb = self.lTrace_raw[3][np.arange(6 + n * 15, nPts * nCycle, nPts)]
+            x2_lsb = self.lTrace_raw[3][np.arange(7 + n * 15, nPts * nCycle, nPts)]
+            x2_msb = self.lTrace_raw[3][np.arange(8 + n * 15, nPts * nCycle, nPts)]
+            y2x2_smsb = self.lTrace_raw[3][np.arange(9 + n * 15, nPts * nCycle, nPts)]
             x2_smsb = y2x2_smsb.astype('int8')
             y2_smsb = y2x2_smsb.astype('int16') >> 8
 
-            y3_lsb = self.lTrace_raw[3][np.arange(10 + n*15,nPts*nCycle,nPts)]
-            y3_msb = self.lTrace_raw[3][np.arange(11 + n*15,nPts*nCycle,nPts)]
-            x3_lsb = self.lTrace_raw[3][np.arange(12 + n*15,nPts*nCycle,nPts)]
-            x3_msb = self.lTrace_raw[3][np.arange(13 + n*15,nPts*nCycle,nPts)]
-            y3x3_smsb = self.lTrace_raw[3][np.arange(14 + n*15,nPts*nCycle,nPts)]
+            y3_lsb = self.lTrace_raw[3][np.arange(10 + n * 15, nPts * nCycle, nPts)]
+            y3_msb = self.lTrace_raw[3][np.arange(11 + n * 15, nPts * nCycle, nPts)]
+            x3_lsb = self.lTrace_raw[3][np.arange(12 + n * 15, nPts * nCycle, nPts)]
+            x3_msb = self.lTrace_raw[3][np.arange(13 + n * 15, nPts * nCycle, nPts)]
+            y3x3_smsb = self.lTrace_raw[3][np.arange(14 + n * 15, nPts * nCycle, nPts)]
             x3_smsb = y3x3_smsb.astype('int8')
             y3_smsb = y3x3_smsb.astype('int16') >> 8
 
-            y1_int64 = y1_lsb.astype('uint16') + (y1_msb.astype('uint16') * (2**16))  + (y1_smsb.astype('int8') * (2**32))
-            x1_int64 = x1_lsb.astype('uint16') + (x1_msb.astype('uint16') * (2**16))  + (x1_smsb.astype('int8') * (2**32))
-            y2_int64 = y2_lsb.astype('uint16') + (y2_msb.astype('uint16') * (2**16))  + (y2_smsb.astype('int8') * (2**32))
-            x2_int64 = x2_lsb.astype('uint16') + (x2_msb.astype('uint16') * (2**16))  + (x2_smsb.astype('int8') * (2**32))
-            y3_int64 = y3_lsb.astype('uint16') + (y3_msb.astype('uint16') * (2**16))  + (y3_smsb.astype('int8') * (2**32))
-            x3_int64 = x3_lsb.astype('uint16') + (x3_msb.astype('uint16') * (2**16))  + (x3_smsb.astype('int8') * (2**32))
-            
+            y1_int64 = y1_lsb.astype('uint16') + (y1_msb.astype('uint16') * (2**16)) + (y1_smsb.astype('int8') * (2**32))
+            x1_int64 = x1_lsb.astype('uint16') + (x1_msb.astype('uint16') * (2**16)) + (x1_smsb.astype('int8') * (2**32))
+            y2_int64 = y2_lsb.astype('uint16') + (y2_msb.astype('uint16') * (2**16)) + (y2_smsb.astype('int8') * (2**32))
+            x2_int64 = x2_lsb.astype('uint16') + (x2_msb.astype('uint16') * (2**16)) + (x2_smsb.astype('int8') * (2**32))
+            y3_int64 = y3_lsb.astype('uint16') + (y3_msb.astype('uint16') * (2**16)) + (y3_smsb.astype('int8') * (2**32))
+            x3_int64 = x3_lsb.astype('uint16') + (x3_msb.astype('uint16') * (2**16)) + (x3_smsb.astype('int8') * (2**32))
+
             smsb_info_temp = [np.max(np.abs(x1_smsb)), np.max(np.abs(y1_smsb)), np.max(np.abs(x2_smsb)), np.max(np.abs(y2_smsb))]
-            
+
             self.smsb_info[n][0] = smsb_info_temp[0]
             self.smsb_info[n][1] = smsb_info_temp[1]
             self.smsb_info[n][2] = smsb_info_temp[2]
             self.smsb_info[n][3] = smsb_info_temp[3]
-            
+
             smsb_temp_info_str = ' [' + str(self.smsb_info[n][0]) + ', ' + str(self.smsb_info[n][1]) + ', ' + str(self.smsb_info[n][2]) + ', ' + str(self.smsb_info[n][3]) + ']'
             self.smsb_info_str.append(smsb_temp_info_str)
-            warning_thr = 124 #warning indication that overflow can occur (int8)
+            warning_thr = 124  # warning indication that overflow can occur (int8)
             if smsb_info_temp[0] > warning_thr or smsb_info_temp[1] > warning_thr or smsb_info_temp[2] > warning_thr or smsb_info_temp[3] > warning_thr:
                 smsb_temp_info_str2 = ' [' + str(smsb_info_temp[0]) + ', ' + str(smsb_info_temp[1]) + ', ' + str(smsb_info_temp[2]) + ', ' + str(smsb_info_temp[3]) + ']'
                 warning_str = 'Warning! overflow may occur in FPGA demod block: ' + str(n) + ', ' + smsb_temp_info_str2
-                self.log(warning_str, level = 30)
+                self.log(warning_str, level=30)
 
-            demod_temp_I = (x1_int64.astype('int64') + 1j * y1_int64.astype('int64') )/2**43/accum_length * lScale[0]
-            demod_temp_Q = (x2_int64.astype('int64') + 1j * y2_int64.astype('int64') )/2**43/accum_length * lScale[1]   
-            demod_temp_ref = (x3_int64.astype('int64') + 1j * y3_int64.astype('int64') )/2**43/accum_length * lScale[2]   
+            demod_temp_I = (x1_int64.astype('int64') + 1j * y1_int64.astype('int64')) / 2**43 / accum_length * lScale[0]
+            demod_temp_Q = (x2_int64.astype('int64') + 1j * y2_int64.astype('int64')) / 2**43 / accum_length * lScale[1]
+            demod_temp_ref = (x3_int64.astype('int64') + 1j * y3_int64.astype('int64')) / 2**43 / accum_length * lScale[2]
 
             if nSeg <= 1:
                 demod_temp_I = demod_temp_I.reshape((nCycle, 1)).mean(0)
                 demod_temp_Q = demod_temp_Q.reshape((nCycle, 1)).mean(0)
                 demod_temp_ref = demod_temp_ref.reshape((nCycle, 1)).mean(0)
-                self.demod_output_vector_I[n] += demod_temp_I/nAv * nCycle
-                self.demod_output_vector_Q[n] += demod_temp_Q/nAv * nCycle
-                self.demod_output_vector_ref[n] += demod_temp_ref/nAv * nCycle
-                self.moment_I2[n] += np.power(np.abs(demod_temp_I),2)/nAv * nCycle
-                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q),2)/nAv * nCycle
+                self.demod_output_vector_I[n] += demod_temp_I / nAv * nCycle
+                self.demod_output_vector_Q[n] += demod_temp_Q / nAv * nCycle
+                self.demod_output_vector_ref[n] += demod_temp_ref / nAv * nCycle
+                self.moment_I2[n] += np.power(np.abs(demod_temp_I), 2) / nAv * nCycle
+                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q), 2) / nAv * nCycle
             else:
-                self.moment_I2[n] += np.power(np.abs(demod_temp_I),2)/nAv 
-                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q),2)/nAv
-                self.demod_output_vector_I[n] += demod_temp_I/nAv
-                self.demod_output_vector_Q[n] += demod_temp_Q/nAv
-                self.demod_output_vector_ref[n] += demod_temp_ref/nAv
+                self.moment_I2[n] += np.power(np.abs(demod_temp_I), 2) / nAv
+                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q), 2) / nAv
+                self.demod_output_vector_I[n] += demod_temp_I / nAv
+                self.demod_output_vector_Q[n] += demod_temp_Q / nAv
+                self.demod_output_vector_ref[n] += demod_temp_ref / nAv
 
-            if self.getValue('LO freq ' + str(n+1)) <= 0:
-                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) + np.imag(self.demod_output_vector_Q[n]) - 1j*(np.imag(self.demod_output_vector_I[n]) - np.real(self.demod_output_vector_Q[n]))
+            if self.getValue('LO freq ' + str(n + 1)) <= 0:
+                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) + np.imag(self.demod_output_vector_Q[n]) - 1j * (np.imag(self.demod_output_vector_I[n]) - np.real(self.demod_output_vector_Q[n]))
             else:
-                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) - np.imag(self.demod_output_vector_Q[n]) - 1j*(np.imag(self.demod_output_vector_I[n]) + np.real(self.demod_output_vector_Q[n]))
+                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) - np.imag(self.demod_output_vector_Q[n]) - 1j * (np.imag(self.demod_output_vector_I[n]) + np.real(self.demod_output_vector_Q[n]))
 
             if self.use_phase_ref:
                 # subtract the reference angle
                 dAngleRef = np.arctan2(self.demod_output_vector_ref[n].imag, self.demod_output_vector_ref[n].real)
-                #self.log('dAngleRef: real:' + str(dAngleRef.real) + ', imag:' + str(dAngleRef.imag), level = 30)                
-                #self.log('REF: real:' + str(self.demod_output_vector_ref[n].real) + ', imag:' + str(self.demod_output_vector_ref[n].imag), level = 30)                
+                # self.log('dAngleRef: real:' + str(dAngleRef.real) + ', imag:' + str(dAngleRef.imag), level = 30)
+                # self.log('REF: real:' + str(self.demod_output_vector_ref[n].real) + ', imag:' + str(self.demod_output_vector_ref[n].imag), level = 30)
                 self.demod_output_vector_SSB[n] /= (np.cos(dAngleRef) - 1j * np.sin(dAngleRef))
 
             self.demod_output_I[n] = np.mean(self.demod_output_vector_I[n])
@@ -576,11 +580,11 @@ class Driver(LabberDriver):
             self.demod_output_vector_NP[n] = self.moment_I2[n] + self.moment_Q2[n]
             self.demod_output_NP[n] = np.mean(self.demod_output_vector_NP[n])
 
-    def setFPGALOfreq(self, demod_num, demod_LO_freq):
+    def setFPGALOfreq(self, demod_LO_freq):
         FPGA_PcPort_channel = 0
 
         demod_freq = np.zeros(2, dtype=int)
-        demod_freq[1] = np.int32(demod_LO_freq / 10e-9)
+        demod_freq[1] = np.int32(demod_LO_freq / 1e-7)
 
         lut_0 = np.zeros(2, dtype=int)
         lut_1 = np.zeros(2, dtype=int)
@@ -595,11 +599,41 @@ class Driver(LabberDriver):
 
         LO_freq = np.abs(demod_LO_freq)
 
-        lut_0[1] = (np.int32(LO_freq * (2**16) * 0 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        lut_1[1] = (np.int32(LO_freq * (2**16) * 1 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        lut_2[1] = (np.int32(LO_freq * (2**16) * 2 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        lut_3[1] = (np.int32(LO_freq * (2**16) * 3 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        lut_4[1] = (np.int32(LO_freq * (2**16) * 4 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
+        lut = []
+        for i in range(5):
+            for j in range(10):
+                lut[j][i] = ((5 * j + i) * demod_freq[1]) % 50
+
+        lut_0[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[0][i]
+        lut_1[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[1][i]
+        lut_2[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[2][i]
+        lut_3[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[3][i]
+        lut_4[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[4][i]
+        lut_5[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[5][i]
+        lut_6[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[6][i]
+        lut_7[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[7][i]
+        lut_8[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[8][i]
+        lut_9[1] = 0b00
+        for i in range(4, -1, -1):
+            lut_0[1] = lut_0[1] << 6 | lut[9][i]
 
         lo_demod_addr = 0xa
 
@@ -617,27 +651,100 @@ class Driver(LabberDriver):
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_3, lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_4, lo_demod_addr + 4, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_5, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_6, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_7, lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_8, lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_9, lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
-        value = np.sign(demod_LO_freq) * np.int32(LO_freq * (2**16) / 100e6) * 100e6 / 2**16
+        value = np.int32(demod_LO_freq / 1e-7)
 
         return value
 
     def setFPGATrigger(self):
         FPGA_PcPort_channel = 0
         skip_time = np.int32(np.floor(self.getValue('Skip time') / 10e-9))
-        # accum_length = np.int32(np.floor(self.getValue('Integration time') / 10e-9))
-        # wait_time = 100  # hardcoded wait time of 100ns in the FPGA
-        # total_window = skip_time + accum_length + wait_time  # total_window is just a safe mechanism
         buffer = np.zeros((2, 1), dtype=int)
         buffer[1] = np.int32(skip_time)
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x16, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        # buffer[1] = np.int32(accum_length + skip_time);
-        # self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
-        # buffer[1] = np.int32(total_window);
-        # self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
+        buffer[1] = 1  # valid bit to finalize the configuration
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+    def setHistParams(self, param):
+        FPGA_PcPort_channel = 0
+
+        if param in ('Analyze Mode'):
+            analyze_mode = np.zeros((2, 1), dtype=int)
+            analyze_mode[1] = np.int32(self.getValueIndex(param))
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, analyze_mode, 0x1e, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('Stream'):
+            isStream = np.zeros((2, 1), dtype=int)
+            isStream[1] = np.int32(self.getValue(param))
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, isStream, 0x02, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('I Bin Width', 'Q Bin Width'):
+            bin_width = np.zeros((2, 1), dtype=int)
+            bin_width[1] = np.int32(self.getValue(param))
+            if param == 'I Bin Width':
+                address = 0x1f
+            else:
+                address = 0x20
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_width, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('I Bin Num', 'Q Bin Num'):
+            bin_num = np.zeros((2, 1), dtype=int)
+            bin_num[1] = np.int32(self.getValue(param))
+            if param == 'I Bin Num':
+                address = 0x21
+            else:
+                address = 0x22
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_num, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('I Bin Min', 'Q Bin Min'):
+            bin_min = np.zeros((2, 1), dtype=int)
+            bin_min[1] = np.int32(self.getValue(param))
+            if param == 'I Bin Min':
+                address = 0x23
+            else:
+                address = 0x24
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_min, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('I Vector Perpendicular', 'Q Vector Perpendicular'):
+            vec_perp = np.zeros((2, 1), dtype=int)
+            vec_perp[1] = np.int32(self.getValue(param))
+            if param == 'I Vector Perpendicular':
+                address = 0x25
+            else:
+                address = 0x26
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, vec_perp, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        elif param in ('I Line Point', 'Q Line Point'):
+            line_pt = np.zeros((2, 1), dtype=int)
+            line_pt[1] = np.int32(self.getValue(param))
+            if param == 'I Line Point':
+                address = 0x27
+            else:
+                address = 0x28
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, line_pt, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        buffer[1] = 1  # valid bit to finalize the configuration
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+    def setSamplingParams(self, param):
+        FPGA_PcPort_channel = 0
+
+        sample_skip = np.zeros((2, 1), dtype=int)
+        sample_length = np.zeros((2, 1), dtype=int)
+
+        sample_freq = self.getValue('Sample frequency')
+        sample_skip_val = int(500e6 / sample_freq)
+        sample_skip[1] = np.int32(sample_skip_val)
+
+        sample_num = self.getValue('Number of samples')
+        sample_length_val = math.ceil(sample_num / (sample_skip_val / 5))
+
+        sample_length[1] = np.int32(sample_length_val)
+
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, sample_length, 0x14, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, sample_skip, 0x15, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        buffer = np.zeros((2, 1), dtype=int)
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
