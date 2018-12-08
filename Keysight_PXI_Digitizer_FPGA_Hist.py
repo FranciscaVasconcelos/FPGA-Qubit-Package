@@ -246,7 +246,6 @@ class Driver(LabberDriver):
 
         return value
 
-
     def performArm(self, quant_names, options={}):
         """Perform the instrument arm operation"""
         # make sure we are arming for reading traces, if not return - commented by RoniW
@@ -262,7 +261,6 @@ class Driver(LabberDriver):
             self.getTraces(bArm=True, bMeasure=False, n_seq=n_seq)
         else:
             self.getTraces(bArm=True, bMeasure=False)
-
 
     def getTraces(self, bArm=True, bMeasure=True, n_seq=0):
         """Get all active traces"""
@@ -456,12 +454,10 @@ class Driver(LabberDriver):
         # # log timing info
         # self.log(': '.join(lT))
 
-
     def getRange(self, ch):
         """Get channel range, as voltage.  Index start at 0"""
         rang = float(self.getCmdStringFromValue('Ch%d - Range' % (ch + 1)))
         return rang
-
 
     def DAQread(self, dig, nDAQ, nPoints, timeOut):
         """Read data diretly to numpy array"""
@@ -538,30 +534,6 @@ class Driver(LabberDriver):
                 smsb_temp_info_str2 = ' [' + str(smsb_info_temp[0]) + ', ' + str(smsb_info_temp[1]) + ', ' + str(smsb_info_temp[2]) + ', ' + str(smsb_info_temp[3]) + ']'
                 warning_str = 'Warning! overflow may occur in FPGA demod block: ' + str(n) + ', ' + smsb_temp_info_str2
                 self.log(warning_str, level = 30)
-            
-            #self.log('y1_lsb:' + str(y1_lsb.astype('uint16')), level = 30)
-            #self.log('y1_msb:' + str(y1_msb.astype('uint16')), level = 30)
-            #self.log('y1_smsb:' + str(y1_smsb.astype('int8')), level = 30)
-            #self.log('y1_64:' + str(y1_int64.astype('int64')), level = 30)
-            
-            #self.log('x1_lsb:' + str(x1_lsb.astype('uint16')), level = 30)
-            #self.log('x1_msb:' + str(x1_msb.astype('uint16')), level = 30)
-            #self.log('x1_smsb:' + str(x1_smsb.astype('int8')), level = 30)
-            #self.log('x1_64:' + str(x1_int64.astype('int64')), level = 30)
-            
-            #self.log('y2_lsb:' + str(y2_lsb.astype('uint16')), level = 30)
-            #self.log('y2_msb:' + str(y2_msb.astype('uint16')), level = 30)
-            #self.log('y2_smsb:' + str(y2_smsb.astype('int8')), level = 30)
-            #self.log('y2_64:' + str(y2_int64.astype('int64')), level = 30)
-            
-            #self.log('x2_lsb:' + str(x2_lsb.astype('uint16')), level = 30)
-            #self.log('x2_msb:' + str(x2_msb.astype('uint16')), level = 30)
-            #self.log('x2_smsb:' + str(x2_smsb.astype('int8')), level = 30)
-            #self.log('x2_64:' + str(x2_int64.astype('int64')), level = 30)
-
-            #self.demod_output_vector_I[n] += ((x1_lsb.astype('uint16') + x1_msb.astype('int16')*(2**16))+ 1j*(y1_lsb.astype('uint16') + y1_msb.astype('int16')*(2**16)))/2**32/accum_length/nAv
-            #self.demod_output_vector_Q[n] += ((x2_lsb.astype('uint16') + x2_msb.astype('int16')*(2**16))+ 1j*(y2_lsb.astype('uint16') + y2_msb.astype('int16')*(2**16)))/2**32/accum_length/nAv
-
 
             demod_temp_I = (x1_int64.astype('int64') + 1j * y1_int64.astype('int64') )/2**43/accum_length * lScale[0]
             demod_temp_Q = (x2_int64.astype('int64') + 1j * y2_int64.astype('int64') )/2**43/accum_length * lScale[1]   
@@ -604,85 +576,70 @@ class Driver(LabberDriver):
             self.demod_output_vector_NP[n] = self.moment_I2[n] + self.moment_Q2[n]
             self.demod_output_NP[n] = np.mean(self.demod_output_vector_NP[n])
 
-
-
     def setFPGALOfreq(self, demod_num, demod_LO_freq):
-        FPGA_PcPort_channel = 0            
-        tmp_0 = np.zeros(2,dtype = int)
-        tmp_1 = np.zeros(2,dtype = int)
-        tmp_2 = np.zeros(2,dtype = int)
-        tmp_3 = np.zeros(2,dtype = int)
-        tmp_4 = np.zeros(2,dtype = int)
-        tmp_5 = np.zeros(2,dtype = int)
+        FPGA_PcPort_channel = 0
+
+        demod_freq = np.zeros(2, dtype=int)
+        demod_freq[1] = np.int32(demod_LO_freq / 10e-9)
+
+        lut_0 = np.zeros(2, dtype=int)
+        lut_1 = np.zeros(2, dtype=int)
+        lut_2 = np.zeros(2, dtype=int)
+        lut_3 = np.zeros(2, dtype=int)
+        lut_4 = np.zeros(2, dtype=int)
+        lut_5 = np.zeros(2, dtype=int)
+        lut_6 = np.zeros(2, dtype=int)
+        lut_7 = np.zeros(2, dtype=int)
+        lut_8 = np.zeros(2, dtype=int)
+        lut_9 = np.zeros(2, dtype=int)
+
         LO_freq = np.abs(demod_LO_freq)
-        tmp_0[1] = (np.int32(LO_freq * (2**16) * 0 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        tmp_1[1] = (np.int32(LO_freq * (2**16) * 1 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        tmp_2[1] = (np.int32(LO_freq * (2**16) * 2 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        tmp_3[1] = (np.int32(LO_freq * (2**16) * 3 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
-        tmp_4[1] = (np.int32(LO_freq * (2**16) * 4 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)            
-        tmp_5[1] = 0
-        
-        lo_base_addr = int(0x110)
-        lo_demod_addr = lo_base_addr + (demod_num - 1) * 5
 
-        buffer = np.zeros((2,1),dtype = int)            
-        buffer[1] = 0; # valid bit to finalize the configuration
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);                        
+        lut_0[1] = (np.int32(LO_freq * (2**16) * 0 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
+        lut_1[1] = (np.int32(LO_freq * (2**16) * 1 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
+        lut_2[1] = (np.int32(LO_freq * (2**16) * 2 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
+        lut_3[1] = (np.int32(LO_freq * (2**16) * 3 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
+        lut_4[1] = (np.int32(LO_freq * (2**16) * 4 / 100e6 / 5) << 16) | np.int32(LO_freq * (2**16) / 100e6)
 
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_5, 0x100, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_0, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_1, lo_demod_addr+1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_2, lo_demod_addr+2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_3, lo_demod_addr+3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_4, lo_demod_addr+4, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)                        
-        tmp_5[1] = 1
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, tmp_5, 0x100, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)            
+        lo_demod_addr = 0xa
 
-        buffer[1] = 1; # valid bit to finalize the configuration
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);                        
+        buffer = np.zeros((2, 1), dtype=int)
+        buffer[1] = 0  # valid bit to finalize the configuration
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        # Set LO frequency parameter
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, demod_freq, 0x0, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        # Set lookup table
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_0, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_1, lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_2, lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_3, lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_4, lo_demod_addr + 4, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_5, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        buffer[1] = 1  # valid bit to finalize the configuration
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
         value = np.sign(demod_LO_freq) * np.int32(LO_freq * (2**16) / 100e6) * 100e6 / 2**16
-                
+
         return value
 
     def setFPGATrigger(self):
         FPGA_PcPort_channel = 0
-        skip_time = np.int32(np.floor(self.getValue('Skip time')/10e-9) - 4)
-        accum_length = np.int32(np.floor(self.getValue('Integration time')/10e-9))
-        wait_time = 100 # hardcoded wait time of 100ns in the FPGA
-        total_window = skip_time + accum_length + wait_time # total_window is just a safe mechanism
-        buffer = np.zeros((2,1),dtype = int)            
-        buffer[1] = np.int32(skip_time);
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x0, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
-        buffer[1] = np.int32(accum_length + skip_time);
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
-        buffer[1] = np.int32(total_window);
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
-        buffer[1] = 1; # valid bit to finalize the configuration
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);                        
-
-
-
-#    def getSignalHardwareLoop(self, ch, quant, options):
-#        """Get data from round-robin type averaging"""
-#        (seq_no, n_seq) = self.getHardwareLoopIndex(options)
-#        nSample = int(self.getValue('Number of samples'))
-#        # if first sequence call, get data
-#        if seq_no == 0 and self.isFirstCall(options):
-#            # show status before starting acquisition
-#            self.reportStatus('Digitizer - Waiting for signal')
-#            # get data
-#            # self.getTracesHardware(n_seq)
-#            self.getTraces(bArm=False, bMeasure=True, n_seq=n_seq)
-#            # re-shape data and place in trace buffer
-#            self.reshaped_traces = []
-#            for trace in self.lTrace:
-#                if len(trace) > 0:
-#                    trace = trace.reshape((n_seq, nSample))
-#                self.reshaped_traces.append(trace)
-#        # after getting data, pick values to return
-#        return quant.getTraceDict(self.reshaped_traces[ch][seq_no], dt=self.dt)
+        skip_time = np.int32(np.floor(self.getValue('Skip time') / 10e-9))
+        # accum_length = np.int32(np.floor(self.getValue('Integration time') / 10e-9))
+        # wait_time = 100  # hardcoded wait time of 100ns in the FPGA
+        # total_window = skip_time + accum_length + wait_time  # total_window is just a safe mechanism
+        buffer = np.zeros((2, 1), dtype=int)
+        buffer[1] = np.int32(skip_time)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x16, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        # buffer[1] = np.int32(accum_length + skip_time);
+        # self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
+        # buffer[1] = np.int32(total_window);
+        # self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA);
+        buffer[1] = 1  # valid bit to finalize the configuration
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
 
 if __name__ == '__main__':
