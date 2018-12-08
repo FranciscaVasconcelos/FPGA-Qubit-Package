@@ -43,7 +43,7 @@ module config_params(
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
                                 {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00}};
-            sample_length <= 11'd2000;
+            /*sample_length <= 11'd2000;
             sample_freq <= 6'd5; // 100 MHz
             delay_time <= 14'd5000; // 50 us
             analyze_mode <= 2'd01;
@@ -54,10 +54,27 @@ module config_params(
             i_bin_min <= 16'd0;
             q_bin_min <= 16'd0;
             i_vec_perp <= 32'd0;
-            q_vec_perp <= 32'd0;
+            q_vec_perp <= 32'd1;
             i_pt_line <= 32'd0;
-            q_pt_line <= 32'd0;
+            q_pt_line <= 32'd1
             output_mode <= 1'd0;
+            num_data_pts <= 16'd10000;*/
+            sample_length <= 11'd1000;
+            sample_freq <= 6'd5; // 100 MHz
+            delay_time <= 14'd1000; // 50 us
+            analyze_mode <= 2'd01;
+            i_bin_width <= 16'd100;
+            q_bin_width <= 16'd100;
+            i_bin_num <= 8'd10;
+            q_bin_num <= 8'd10;
+            i_bin_min <= 16'd0;
+            q_bin_min <= 16'd0;
+            i_vec_perp <= 32'd0;
+            q_vec_perp <= 32'd1;
+            i_pt_line <= 32'd0;
+            q_pt_line <= 32'd1;
+            output_mode <= 1'd0;
+            num_data_pts <= 16'd3;
         end
         else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values
             // search for correct address

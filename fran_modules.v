@@ -239,7 +239,7 @@ module classify(
     
     reg signed [31:0] i_vec_pt, q_vec_pt; // vector from origin to pt to classify
 
-    reg signed [63:0] dot_product;
+    reg signed [65:0] dot_product;
 
     // output state parameters
     parameter GROUND_STATE = 2'b01;
@@ -254,6 +254,7 @@ module classify(
     
     initial begin 
         comp_state <= RESET;
+        valid_output <= 0;
     end
     
     // NOTE: MIGHT NEED TO ADD BUFER STATES TO ACCOUNT FOR OPERATION LAG (IF OPS EXCEED CLOCK CYCLE)
@@ -384,21 +385,43 @@ module classify_master(
     wire [15:0] ground_count;
     wire [15:0] line_count;
     
-    reg [2:0] count_mode;
+    reg [1:0] count_mode;
     parameter COUNT = 2'b00; 
     parameter OUTPUT_FINAL = 2'b01;
     parameter RESET = 2'b10;
+    
+    reg stream_state;
+    parameter WAIT_FOR_VAL = 1;
+    parameter STREAM_RESET = 0;
     
     initial begin 
         count_mode = COUNT;
         data_output_trigger = 0;
         fpga_output = 0;
+        reset <= 0;
     end
     
     always @(posedge clk100) begin
         // output values as they come in
+        
         if(stream_mode) begin
-            fpga_output <= {112'b0, valid_class_pt, 13'b0, state};
+            fpga_output <= {64'b0, 13'b0, state};
+            
+            case(stream_state)
+           
+                WAIT_FOR_VAL: begin
+                    if(valid_class_pt) begin
+                        data_output_trigger <= 1;
+                        stream_state <= STREAM_RESET;
+                    end
+                end
+                
+                STREAM_RESET: begin
+                    data_output_trigger <= 0;
+                    stream_state <= WAIT_FOR_VAL;
+                end
+            
+            endcase
         end
         
         // output values while updating and signal when finished
@@ -408,7 +431,7 @@ module classify_master(
                 COUNT: begin
                     reset <= 0;
                     data_output_trigger <= 0;
-                    if(data_pt_count < num_data_pts-1) begin
+                    if(data_pt_count < num_data_pts) begin
                         fpga_output <= {16'b0, data_pt_count, excited_count, ground_count, line_count};
                         reset <= 0;
                         if(valid_class_pt) data_pt_count <= data_pt_count + 1;
@@ -430,7 +453,7 @@ module classify_master(
                     count_mode <= COUNT;
                 end
                 
-                default count_mode <= RESET;
+                default count_mode <= COUNT;
                 
             endcase
         end
