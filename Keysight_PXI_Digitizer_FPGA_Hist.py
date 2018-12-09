@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import sys
+sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 
 from BaseDriver import LabberDriver, Error, IdError
 import keysightSD1
@@ -6,9 +8,6 @@ import keysightSD1
 import numpy as np
 import math
 import os
-
-import sys
-sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 
 
 class Driver(LabberDriver):
@@ -71,17 +70,33 @@ class Driver(LabberDriver):
         self.fpga_config = self.getValue('FPGA Hardware')
 
         if self.fpga_config == 'FPGA QB package (alpha)':
-            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_post_deletion_2018-12-06T16_59_21.sbp')
+            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_debug_test_2018-12-08T21_16_01.sbp')
 
         if (self.dig.FPGAload(Bitstream)) < 0:
             raise Error('FPGA not loaded, check FPGA version...')
 
         for n in range(self.num_of_demods):
             LO_freq = self.getValue('LO freq ' + str(n + 1))
-            self.setFPGALOfreq(n + 1, LO_freq)
+            self.setFPGALOfreq(LO_freq)
 
         self.setFPGATrigger()
-        self.setHistParams()
+
+        for name in ['Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
+                            'I Bin Num', 'Q Bin Num', 'I Bin Min', 'Q Bin Min',
+                            'I Vector Perpendicular', 'Q Vector Perpendicular',
+                            'I Line Point', 'Q Line Point']:
+            self.setHistParams(name)
+
+        for name in ['Number of samples', 'Sample frequency']:
+            self.setSamplingParams(name)
+
+        for name in ['Number of records']:
+            FPGA_PcPort_channel = 0
+            record_num_val = self.getValue(name)
+            record_num = np.zeros((2, 1), dtype=int)
+            record_num[1] = np.int32(record_num_val)
+            self.dig.FPGAwritePCport(FPGA_PcPort_channel, record_num, 0x1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
         self.smsb_info = np.zeros([self.num_of_demods, 4], dtype='int16')
 
     def getHwCh(self, n):
@@ -144,8 +159,8 @@ class Driver(LabberDriver):
             demod_num = int(quant.name[-1])
             if demod_num == 1:
                 LO_freq = self.getValue('LO freq ' + str(demod_num))
-                value = self.setFPGALOfreq(demod_num, LO_freq)
-                quant.setValue(value)
+                self.setFPGALOfreq(LO_freq)
+                # quant.setValue(value)
 
         elif quant.name in ('Skip time'):
             self.setFPGATrigger()
@@ -464,7 +479,7 @@ class Driver(LabberDriver):
         return rang
 
     def DAQread(self, dig, nDAQ, nPoints, timeOut):
-        """Read data diretly to numpy array"""
+        """Read data directly to numpy array"""
         if dig._SD_Object__handle > 0:
             if nPoints > 0:
                 data = (keysightSD1.c_short * nPoints)()
@@ -584,7 +599,8 @@ class Driver(LabberDriver):
         FPGA_PcPort_channel = 0
 
         demod_freq = np.zeros(2, dtype=int)
-        demod_freq[1] = np.int32(demod_LO_freq / 1e-7)
+        demod_freq_val = np.abs(demod_LO_freq) / 10e6
+        demod_freq[1] = np.int32(demod_freq_val)
 
         lut_0 = np.zeros(2, dtype=int)
         lut_1 = np.zeros(2, dtype=int)
@@ -597,9 +613,7 @@ class Driver(LabberDriver):
         lut_8 = np.zeros(2, dtype=int)
         lut_9 = np.zeros(2, dtype=int)
 
-        LO_freq = np.abs(demod_LO_freq)
-
-        lut = []
+        lut = [[0 for n in range(5)] for k in range(10)]
         for i in range(5):
             for j in range(10):
                 lut[j][i] = ((5 * j + i) * demod_freq[1]) % 50
@@ -659,7 +673,7 @@ class Driver(LabberDriver):
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
-        value = np.int32(demod_LO_freq / 1e-7)
+        value = np.int32(demod_LO_freq / 10e6)
 
         return value
 
@@ -679,10 +693,12 @@ class Driver(LabberDriver):
             analyze_mode = np.zeros((2, 1), dtype=int)
             analyze_mode[1] = np.int32(self.getValueIndex(param))
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, analyze_mode, 0x1e, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = analyze_mode[1]
         elif param in ('Stream'):
             isStream = np.zeros((2, 1), dtype=int)
             isStream[1] = np.int32(self.getValue(param))
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, isStream, 0x02, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = isStream[1]
         elif param in ('I Bin Width', 'Q Bin Width'):
             bin_width = np.zeros((2, 1), dtype=int)
             bin_width[1] = np.int32(self.getValue(param))
@@ -691,6 +707,7 @@ class Driver(LabberDriver):
             else:
                 address = 0x20
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_width, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = bin_width[1]
         elif param in ('I Bin Num', 'Q Bin Num'):
             bin_num = np.zeros((2, 1), dtype=int)
             bin_num[1] = np.int32(self.getValue(param))
@@ -699,6 +716,7 @@ class Driver(LabberDriver):
             else:
                 address = 0x22
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_num, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = bin_num[1]
         elif param in ('I Bin Min', 'Q Bin Min'):
             bin_min = np.zeros((2, 1), dtype=int)
             bin_min[1] = np.int32(self.getValue(param))
@@ -707,6 +725,7 @@ class Driver(LabberDriver):
             else:
                 address = 0x24
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_min, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = bin_min[1]
         elif param in ('I Vector Perpendicular', 'Q Vector Perpendicular'):
             vec_perp = np.zeros((2, 1), dtype=int)
             vec_perp[1] = np.int32(self.getValue(param))
@@ -715,6 +734,7 @@ class Driver(LabberDriver):
             else:
                 address = 0x26
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, vec_perp, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = vec_perp[1]
         elif param in ('I Line Point', 'Q Line Point'):
             line_pt = np.zeros((2, 1), dtype=int)
             line_pt[1] = np.int32(self.getValue(param))
@@ -723,9 +743,13 @@ class Driver(LabberDriver):
             else:
                 address = 0x28
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, line_pt, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+            value = line_pt[1]
 
+        buffer = np.zeros((2,1), dtype=int)
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        return value
 
     def setSamplingParams(self, param):
         FPGA_PcPort_channel = 0
@@ -747,6 +771,13 @@ class Driver(LabberDriver):
         buffer = np.zeros((2, 1), dtype=int)
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+
+        if param == 'Sample frequency':
+            value = sample_skip_val
+        else:
+            value = sample_length_val
+
+        return value
 
 
 if __name__ == '__main__':
