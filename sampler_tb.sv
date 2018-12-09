@@ -32,7 +32,7 @@ module sampler_tb(
         end
     end
     
-    wire reset = 0;
+    reg reset = 0;
     reg start_collect = 0;
     wire [4:0] demod_freq = 5'd6; // 50 MHz
     wire [10:0] sample_length = 11'd2000; // 20 us
@@ -55,6 +55,9 @@ module sampler_tb(
     
     initial begin
         #1;
+        reset <= 0;
+        #10;
+        reset <= 0;
         forever begin
             for (k = 0; k < 5; k = k + 1) begin
                 data_i_in[k] = data_i_in[k] + k;
@@ -73,7 +76,7 @@ module sampler_tb(
             
     wire [4:0] [15:0] data_i_shift;
     wire [4:0] [15:0] data_q_shift;
-    wire [4:0] [17:0] phase_vals;
+    wire [4:0] [7:0] phase_vals;
     
     
     sampler uut(

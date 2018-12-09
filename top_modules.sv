@@ -32,7 +32,6 @@ module config_params(
     always @(posedge clk100) begin
         if (reset) begin // reset to default
             demod_freq <= 5'd5; // 50 MHz
-            
             demod_mod50_LUT <= {{6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
                                 {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
@@ -54,7 +53,7 @@ module config_params(
             i_bin_min <= 16'd0;
             q_bin_min <= 16'd0;
             i_vec_perp <= 32'd0;
-            q_vec_perp <= 32'd1;
+            q_vec_perp <= 32'd0;
             i_pt_line <= 32'd0;
             q_pt_line <= 32'd1
             output_mode <= 1'd0;
