@@ -162,7 +162,7 @@ class Driver(LabberDriver):
                 self.setFPGALOfreq(LO_freq)
                 # quant.setValue(value)
 
-        elif quant.name in ('Skip time'):
+        elif quant.name in ['Skip time']:
             self.setFPGATrigger()
 
         elif quant.name in ('Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
@@ -174,7 +174,7 @@ class Driver(LabberDriver):
         elif quant.name in ('Number of samples', 'Sample frequency'):
             self.setSamplingParams(quant.name)
 
-        elif quant.name in ('Number of Records'):
+        elif quant.name in ['Number of Records']:
             record_num_val = self.getValue(quant.name)
             record_num = np.zeros((2, 1), dtype=int)
             record_num[1] = np.int32(record_num_val)
@@ -694,7 +694,7 @@ class Driver(LabberDriver):
             analyze_mode[1] = np.int32(self.getValueIndex(param))
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, analyze_mode, 0x1e, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = analyze_mode[1]
-        elif param in ('Stream'):
+        elif param in ['Stream']:
             isStream = np.zeros((2, 1), dtype=int)
             isStream[1] = np.int32(self.getValue(param))
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, isStream, 0x02, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
