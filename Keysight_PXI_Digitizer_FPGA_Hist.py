@@ -16,7 +16,7 @@ class Driver(LabberDriver):
     def performOpen(self, options={}):
         """Perform the operation of opening the instrument connection"""
         # number of demod blocks in the FPGA
-        self.num_of_demods = 5
+        self.num_of_demods = 1
         self.demod_sample_size = 100
 
         # set time step and resolution
@@ -70,7 +70,7 @@ class Driver(LabberDriver):
         self.fpga_config = self.getValue('FPGA Hardware')
 
         if self.fpga_config == 'FPGA QB package (alpha)':
-            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_debug_test_2018-12-08T21_16_01.sbp')
+            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_debug_test_2018-12-08T19_34_44.sbp')
 
         if (self.dig.FPGAload(Bitstream)) < 0:
             raise Error('FPGA not loaded, check FPGA version...')
@@ -195,7 +195,9 @@ class Driver(LabberDriver):
         if quant.name.startswith('FPGA Voltage') or quant.name.startswith('FPGA Single-shot'):
             demod_num = int(quant.name[-1]) - 1
 
-        if name == 'Signal' or quant.name.startswith('FPGA Voltage') or quant.name.startswith('FPGA Single-shot'):
+        if name == 'Signal' or quant.name.startswith('FPGA'):
+            self.log('FPGA output:')
+
             if self.isHardwareLoop(options):
                 """Get data from round-robin type averaging"""
                 (seq_no, n_seq) = self.getHardwareLoopIndex(options)
@@ -216,24 +218,7 @@ class Driver(LabberDriver):
                 # after getting data, pick values to return
                 if name == 'Signal':
                     return quant.getTraceDict(self.reshaped_traces[ch][seq_no], dt=self.dt)
-                elif quant.name.startswith('FPGA Voltage I'):
-                    return self.demod_output_I[demod_num]
-                elif quant.name.startswith('FPGA Single-shot I'):
-                    return quant.getTraceDict(self.demod_output_vector_I[demod_num][seq_no], dt=1)
-                elif quant.name.startswith('FPGA Voltage Q'):
-                    return self.demod_output_Q[demod_num]
-                elif quant.name.startswith('FPGA Single-shot Q'):
-                    return quant.getTraceDict(self.demod_output_vector_Q[demod_num][seq_no], dt=1)
-                elif quant.name.startswith('FPGA Voltage'):
-                    return self.demod_output_SSB[demod_num]
-                elif quant.name.startswith('FPGA Single-shot'):
-                    return quant.getTraceDict(self.demod_output_vector_SSB[demod_num][seq_no], dt=1)
-                elif quant.name.startswith('FPGA Single-shot REF'):
-                    return quant.getTraceDict(self.demod_output_vector_ref[demod_num][seq_no], dt=1)
-                elif quant.name.startswith('FPGA Voltage NP'):
-                    return self.demod_output_NP[demod_num]
-                elif quant.name.startswith('FPGA Single-shot NP'):
-                    return quant.getTraceDict(self.demod_output_vector_NP[demod_num][seq_no], dt=1)
+
             # get traces if first call
             if self.isFirstCall(options):
                 # don't arm if in hardware trig mode
@@ -241,24 +226,24 @@ class Driver(LabberDriver):
             # return correct data
             if name == 'Signal':
                 value = quant.getTraceDict(self.lTrace[ch], dt=self.dt)
-            elif quant.name.startswith('FPGA Voltage I'):
-                value = self.demod_output_I[demod_num]
-            elif quant.name.startswith('FPGA Single-shot I'):
-                value = quant.getTraceDict(self.demod_output_vector_I[demod_num], dt=1)
-            elif quant.name.startswith('FPGA Voltage Q'):
-                value = self.demod_output_Q[demod_num]
-            elif quant.name.startswith('FPGA Single-shot Q'):
-                value = quant.getTraceDict(self.demod_output_vector_Q[demod_num], dt=1)
-            elif quant.name.startswith('FPGA Voltage'):
-                value = self.demod_output_SSB[demod_num]
-            elif quant.name.startswith('FPGA Single-shot'):
-                value = quant.getTraceDict(self.demod_output_vector_SSB[demod_num], dt=1)
-            elif quant.name.startswith('FPGA Single-shot REF'):
-                value = quant.getTraceDict(self.demod_output_vector_ref[demod_num], dt=1)
-            elif quant.name.startswith('FPGA Voltage NP'):
-                return self.demod_output_NP[demod_num]
-            elif quant.name.startswith('FPGA Single-shot NP'):
-                return quant.getTraceDict(self.demod_output_vector_NP[demod_num], dt=1)
+            elif quant.name.startswith('FPGA I Value'):
+                self.log('FPGA data_dump_i_val:', self.data_dump_i_val)
+                value = self.data_dump_i_val[0]
+            elif quant.name.startswith('FPGA Q Value'):
+                self.log('FPGA data_dump_q_val:', self.data_dump_q_val)
+                value = self.data_dump_q_val[0]
+            elif quant.name.startswith('FPGA Excited Count'):
+                value = self.classify_excited_count[0]
+            elif quant.name.startswith('FPGA Ground Count'):
+                value = self.classify_ground_count[0]
+            elif quant.name.startswith('FPGA Line Count'):
+                value = self.classify_line_count[0]
+            elif quant.name.startswith('FPGA Classify State'):
+                value = self.classify_state[0]
+            elif quant.name.startswith('FPGA I Hist2D Bin'):
+                value = self.histogram_i_bin[0]
+            elif quant.name.startswith('FPGA Q Hist2D Bin'):
+                value = self.histogram_q_bin[0]
 
         else:
             # for all others, return local value
@@ -327,18 +312,14 @@ class Driver(LabberDriver):
             self.lTrace_raw = [np.array([])] * self.nCh
             self.lTrace_raw[3] = np.zeros((nSeg * nPts))
             self.smsb_info_str = []
-            self.demod_output_vector_I = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.demod_output_I = np.zeros(self.num_of_demods, dtype='complex')
-            self.demod_output_vector_Q = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.demod_output_Q = np.zeros(self.num_of_demods, dtype='complex')
-            self.demod_output_vector_ref = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.demod_output_ref = np.zeros(self.num_of_demods, dtype='complex')
-            self.demod_output_vector_SSB = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.demod_output_SSB = np.zeros(self.num_of_demods, dtype='complex')
-            self.demod_output_vector_NP = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.demod_output_NP = np.zeros(self.num_of_demods, dtype='complex')
-            self.moment_I2 = np.zeros([self.num_of_demods, nSeg], dtype='complex')
-            self.moment_Q2 = np.zeros([self.num_of_demods, nSeg], dtype='complex')
+            self.data_dump_i_val = [0]
+            self.data_dump_q_val = [0]
+            self.classify_excited_count = [0]
+            self.classify_ground_count = [0]
+            self.classify_line_count = [0]
+            self.classify_state = [0]
+            self.histogram_i_bin = [0]
+            self.histogram_q_bin = [0]
 
             # configure trigger for all active channels
             for nCh in lCh:
@@ -507,93 +488,50 @@ class Driver(LabberDriver):
 
         self.use_phase_ref = self.getValue('Use phase reference signal')
 
-        for n in range(nDemods):
-            y1_lsb = self.lTrace_raw[3][np.arange(0 + n * 15, nPts * nCycle, nPts)]
-            y1_msb = self.lTrace_raw[3][np.arange(1 + n * 15, nPts * nCycle, nPts)]
-            x1_lsb = self.lTrace_raw[3][np.arange(2 + n * 15, nPts * nCycle, nPts)]
-            x1_msb = self.lTrace_raw[3][np.arange(3 + n * 15, nPts * nCycle, nPts)]
-            y1x1_smsb = self.lTrace_raw[3][np.arange(4 + n * 15, nPts * nCycle, nPts)]
-            x1_smsb = y1x1_smsb.astype('int8')
-            y1_smsb = y1x1_smsb.astype('int16') >> 8
+        analyze_mode = self.getValue("Analyze Mode")
+        isStream = self.getValue("Stream")
 
-            y2_lsb = self.lTrace_raw[3][np.arange(5 + n * 15, nPts * nCycle, nPts)]
-            y2_msb = self.lTrace_raw[3][np.arange(6 + n * 15, nPts * nCycle, nPts)]
-            x2_lsb = self.lTrace_raw[3][np.arange(7 + n * 15, nPts * nCycle, nPts)]
-            x2_msb = self.lTrace_raw[3][np.arange(8 + n * 15, nPts * nCycle, nPts)]
-            y2x2_smsb = self.lTrace_raw[3][np.arange(9 + n * 15, nPts * nCycle, nPts)]
-            x2_smsb = y2x2_smsb.astype('int8')
-            y2_smsb = y2x2_smsb.astype('int16') >> 8
+        if analyze_mode == 'Data Dump':
+            q_val_lsb = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
+            q_val_msb = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
+            i_val_lsb = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
+            i_val_msb = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
+            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
+            q_val = q_val_lsb.astype('uint16') + (q_val_msb.astype('uint16') * (2**16))     
+            i_val = i_val_lsb.astype('uint16') + (i_val_msb.astype('uint16') * (2**16))     
 
-            y3_lsb = self.lTrace_raw[3][np.arange(10 + n * 15, nPts * nCycle, nPts)]
-            y3_msb = self.lTrace_raw[3][np.arange(11 + n * 15, nPts * nCycle, nPts)]
-            x3_lsb = self.lTrace_raw[3][np.arange(12 + n * 15, nPts * nCycle, nPts)]
-            x3_msb = self.lTrace_raw[3][np.arange(13 + n * 15, nPts * nCycle, nPts)]
-            y3x3_smsb = self.lTrace_raw[3][np.arange(14 + n * 15, nPts * nCycle, nPts)]
-            x3_smsb = y3x3_smsb.astype('int8')
-            y3_smsb = y3x3_smsb.astype('int16') >> 8
+            self.data_dump_i_val = i_val.astype('int32') / 2**32 / accum_length * lScale[0]
+            self.data_dump_q_val =  q_val.astype('int32') / 2**32 / accum_length * lScale[1]
 
-            y1_int64 = y1_lsb.astype('uint16') + (y1_msb.astype('uint16') * (2**16)) + (y1_smsb.astype('int8') * (2**32))
-            x1_int64 = x1_lsb.astype('uint16') + (x1_msb.astype('uint16') * (2**16)) + (x1_smsb.astype('int8') * (2**32))
-            y2_int64 = y2_lsb.astype('uint16') + (y2_msb.astype('uint16') * (2**16)) + (y2_smsb.astype('int8') * (2**32))
-            x2_int64 = x2_lsb.astype('uint16') + (x2_msb.astype('uint16') * (2**16)) + (x2_smsb.astype('int8') * (2**32))
-            y3_int64 = y3_lsb.astype('uint16') + (y3_msb.astype('uint16') * (2**16)) + (y3_smsb.astype('int8') * (2**32))
-            x3_int64 = x3_lsb.astype('uint16') + (x3_msb.astype('uint16') * (2**16)) + (x3_smsb.astype('int8') * (2**32))
+        elif analyze_mode == 'Classify' and not isStream:
+            line_val = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
+            ground_val = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
+            excited_val = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
+            data_count = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
+            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
 
-            smsb_info_temp = [np.max(np.abs(x1_smsb)), np.max(np.abs(y1_smsb)), np.max(np.abs(x2_smsb)), np.max(np.abs(y2_smsb))]
+            self.classify_excited_count = excited_val
+            self.classify_ground_count = ground_val
+            self.classify_line_count = line_val
 
-            self.smsb_info[n][0] = smsb_info_temp[0]
-            self.smsb_info[n][1] = smsb_info_temp[1]
-            self.smsb_info[n][2] = smsb_info_temp[2]
-            self.smsb_info[n][3] = smsb_info_temp[3]
+        elif analyze_mode == 'Classify' and isStream:
+            state_val = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
+            zeros1 = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
+            zeros2 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
+            zeros3 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
+            zeros4 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
+            
+            self.classify_state = state_val
 
-            smsb_temp_info_str = ' [' + str(self.smsb_info[n][0]) + ', ' + str(self.smsb_info[n][1]) + ', ' + str(self.smsb_info[n][2]) + ', ' + str(self.smsb_info[n][3]) + ']'
-            self.smsb_info_str.append(smsb_temp_info_str)
-            warning_thr = 124  # warning indication that overflow can occur (int8)
-            if smsb_info_temp[0] > warning_thr or smsb_info_temp[1] > warning_thr or smsb_info_temp[2] > warning_thr or smsb_info_temp[3] > warning_thr:
-                smsb_temp_info_str2 = ' [' + str(smsb_info_temp[0]) + ', ' + str(smsb_info_temp[1]) + ', ' + str(smsb_info_temp[2]) + ', ' + str(smsb_info_temp[3]) + ']'
-                warning_str = 'Warning! overflow may occur in FPGA demod block: ' + str(n) + ', ' + smsb_temp_info_str2
-                self.log(warning_str, level=30)
+        elif analyze_mode == 'Histogram':
+            hist_q = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
+            hist_i = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
+            zeros1 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
+            zeros2 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
+            zeros3 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
 
-            demod_temp_I = (x1_int64.astype('int64') + 1j * y1_int64.astype('int64')) / 2**43 / accum_length * lScale[0]
-            demod_temp_Q = (x2_int64.astype('int64') + 1j * y2_int64.astype('int64')) / 2**43 / accum_length * lScale[1]
-            demod_temp_ref = (x3_int64.astype('int64') + 1j * y3_int64.astype('int64')) / 2**43 / accum_length * lScale[2]
-
-            if nSeg <= 1:
-                demod_temp_I = demod_temp_I.reshape((nCycle, 1)).mean(0)
-                demod_temp_Q = demod_temp_Q.reshape((nCycle, 1)).mean(0)
-                demod_temp_ref = demod_temp_ref.reshape((nCycle, 1)).mean(0)
-                self.demod_output_vector_I[n] += demod_temp_I / nAv * nCycle
-                self.demod_output_vector_Q[n] += demod_temp_Q / nAv * nCycle
-                self.demod_output_vector_ref[n] += demod_temp_ref / nAv * nCycle
-                self.moment_I2[n] += np.power(np.abs(demod_temp_I), 2) / nAv * nCycle
-                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q), 2) / nAv * nCycle
-            else:
-                self.moment_I2[n] += np.power(np.abs(demod_temp_I), 2) / nAv
-                self.moment_Q2[n] += np.power(np.abs(demod_temp_Q), 2) / nAv
-                self.demod_output_vector_I[n] += demod_temp_I / nAv
-                self.demod_output_vector_Q[n] += demod_temp_Q / nAv
-                self.demod_output_vector_ref[n] += demod_temp_ref / nAv
-
-            if self.getValue('LO freq ' + str(n + 1)) <= 0:
-                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) + np.imag(self.demod_output_vector_Q[n]) - 1j * (np.imag(self.demod_output_vector_I[n]) - np.real(self.demod_output_vector_Q[n]))
-            else:
-                self.demod_output_vector_SSB[n] = np.real(self.demod_output_vector_I[n]) - np.imag(self.demod_output_vector_Q[n]) - 1j * (np.imag(self.demod_output_vector_I[n]) + np.real(self.demod_output_vector_Q[n]))
-
-            if self.use_phase_ref:
-                # subtract the reference angle
-                dAngleRef = np.arctan2(self.demod_output_vector_ref[n].imag, self.demod_output_vector_ref[n].real)
-                # self.log('dAngleRef: real:' + str(dAngleRef.real) + ', imag:' + str(dAngleRef.imag), level = 30)
-                # self.log('REF: real:' + str(self.demod_output_vector_ref[n].real) + ', imag:' + str(self.demod_output_vector_ref[n].imag), level = 30)
-                self.demod_output_vector_SSB[n] /= (np.cos(dAngleRef) - 1j * np.sin(dAngleRef))
-
-            self.demod_output_I[n] = np.mean(self.demod_output_vector_I[n])
-            self.demod_output_Q[n] = np.mean(self.demod_output_vector_Q[n])
-            self.demod_output_ref[n] = np.mean(self.demod_output_vector_ref[n])
-
-            self.demod_output_SSB[n] = np.mean(self.demod_output_vector_SSB[n])
-
-            self.demod_output_vector_NP[n] = self.moment_I2[n] + self.moment_Q2[n]
-            self.demod_output_NP[n] = np.mean(self.demod_output_vector_NP[n])
+            self.histogram_i_bin = hist_i
+            self.histogram_q_bin = hist_q
 
     def setFPGALOfreq(self, demod_LO_freq):
         FPGA_PcPort_channel = 0
