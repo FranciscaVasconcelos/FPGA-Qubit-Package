@@ -82,12 +82,12 @@ class Driver(LabberDriver):
         self.setFPGATrigger()
 
         for name in ['Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
-                            'I Bin Num', 'Q Bin Num', 'I Bin Min', 'Q Bin Min',
-                            'I Vector Perpendicular', 'Q Vector Perpendicular',
-                            'I Line Point', 'Q Line Point']:
+                     'I Bin Num', 'Q Bin Num', 'I Bin Min', 'Q Bin Min',
+                     'I Vector Perpendicular', 'Q Vector Perpendicular',
+                     'I Line Point', 'Q Line Point']:
             self.setHistParams(name)
 
-        for name in ['Number of samples', 'Sample frequency']:
+        for name in ['Integration time', 'Sample frequency']:
             self.setSamplingParams(name)
 
         for name in ['Number of records']:
@@ -160,18 +160,17 @@ class Driver(LabberDriver):
             if demod_num == 1:
                 LO_freq = self.getValue('LO freq ' + str(demod_num))
                 self.setFPGALOfreq(LO_freq)
-                # quant.setValue(value)
 
         elif quant.name in ['Skip time']:
             self.setFPGATrigger()
 
-        elif quant.name in ('Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
+        elif quant.name in ['Analyze Mode', 'Stream', 'I Bin Width', 'Q Bin Width',
                             'I Bin Num', 'Q Bin Num', 'I Bin Min', 'Q Bin Min',
                             'I Vector Perpendicular', 'Q Vector Perpendicular',
-                            'I Line Point', 'Q Line Point'):
+                            'I Line Point', 'Q Line Point']:
             self.setHistParams(quant.name)
 
-        elif quant.name in ('Number of samples', 'Sample frequency'):
+        elif quant.name in ['Integration time', 'Sample frequency']:
             self.setSamplingParams(quant.name)
 
         elif quant.name in ['Number of Records']:
@@ -496,9 +495,9 @@ class Driver(LabberDriver):
             q_val_msb = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
             i_val_lsb = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
             i_val_msb = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
-            q_val = q_val_lsb.astype('uint16') + (q_val_msb.astype('uint16') * (2**16))     
-            i_val = i_val_lsb.astype('uint16') + (i_val_msb.astype('uint16') * (2**16))     
+            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
+            q_val = q_val_lsb.astype('uint16') + (q_val_msb.astype('uint16') * (2**16))
+            i_val = i_val_lsb.astype('uint16') + (i_val_msb.astype('uint16') * (2**16))
 
             self.data_dump_i_val = i_val.astype('int32') / 2**32 / accum_length * lScale[0]
             self.data_dump_q_val =  q_val.astype('int32') / 2**32 / accum_length * lScale[1]
@@ -508,7 +507,7 @@ class Driver(LabberDriver):
             ground_val = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
             excited_val = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
             data_count = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
+            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
 
             self.classify_excited_count = excited_val
             self.classify_ground_count = ground_val
@@ -519,7 +518,7 @@ class Driver(LabberDriver):
             zeros1 = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
             zeros2 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
             zeros3 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros4 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
+            zeros4 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
             
             self.classify_state = state_val
 
@@ -528,18 +527,21 @@ class Driver(LabberDriver):
             hist_i = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
             zeros1 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
             zeros2 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros3 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]       
+            zeros3 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
 
             self.histogram_i_bin = hist_i
             self.histogram_q_bin = hist_q
 
     def setFPGALOfreq(self, demod_LO_freq):
+        '''' Set Demod freq and LUT parameters'''
         FPGA_PcPort_channel = 0
 
-        demod_freq = np.zeros(2, dtype=int)
-        demod_freq_val = np.abs(demod_LO_freq) / 10e6
-        demod_freq[1] = np.int32(demod_freq_val)
+        # Set Demoq freq
+        demod_freq = np.zeros(2, dtype=int)  # Set up parameter list
+        demod_freq_val = np.abs(demod_LO_freq) / 10e6  # Calculated demod_freq user input
+        demod_freq[1] = np.int32(demod_freq_val)  # Set value in list
 
+        # Set up LUT lists
         lut_0 = np.zeros(2, dtype=int)
         lut_1 = np.zeros(2, dtype=int)
         lut_2 = np.zeros(2, dtype=int)
@@ -551,11 +553,13 @@ class Driver(LabberDriver):
         lut_8 = np.zeros(2, dtype=int)
         lut_9 = np.zeros(2, dtype=int)
 
+        # Calculate LUT element values
         lut = [[0 for n in range(5)] for k in range(10)]
         for i in range(5):
             for j in range(10):
                 lut[j][i] = ((5 * j + i) * demod_freq[1]) % 50
 
+        # Concatenate LUT element values
         lut_0[1] = 0b00
         for i in range(4, -1, -1):
             lut_0[1] = lut_0[1] << 6 | lut[0][i]
@@ -593,10 +597,10 @@ class Driver(LabberDriver):
         buffer[1] = 0  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
-        # Set LO frequency parameter
+        # Set LO frequency parameter in FPGA
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, demod_freq, 0x0, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
-        # Set lookup table
+        # Set lookup table in FPGA
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_0, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_1, lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_2, lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
@@ -616,6 +620,7 @@ class Driver(LabberDriver):
         return value
 
     def setFPGATrigger(self):
+        ''' Set Skip time parameter'''
         FPGA_PcPort_channel = 0
         skip_time = np.int32(np.floor(self.getValue('Skip time') / 10e-9))
         buffer = np.zeros((2, 1), dtype=int)
@@ -625,6 +630,7 @@ class Driver(LabberDriver):
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
     def setHistParams(self, param):
+        ''' Set Histogram 2D parameters'''
         FPGA_PcPort_channel = 0
 
         if param in ('Analyze Mode'):
@@ -683,13 +689,14 @@ class Driver(LabberDriver):
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, line_pt, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = line_pt[1]
 
-        buffer = np.zeros((2,1), dtype=int)
+        buffer = np.zeros((2, 1), dtype=int)
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
         return value
 
     def setSamplingParams(self, param):
+        ''' Set Sampling parameters'''
         FPGA_PcPort_channel = 0
 
         sample_skip = np.zeros((2, 1), dtype=int)
@@ -699,8 +706,8 @@ class Driver(LabberDriver):
         sample_skip_val = int(500e6 / sample_freq)
         sample_skip[1] = np.int32(sample_skip_val)
 
-        sample_num = self.getValue('Number of samples')
-        sample_length_val = math.ceil(sample_num / (sample_skip_val / 5))
+        int_time = self.getValue('Integration time')
+        sample_length_val = math.ceil(int_time * 100e6)
 
         sample_length[1] = np.int32(sample_length_val)
 
