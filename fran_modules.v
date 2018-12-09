@@ -517,17 +517,17 @@ module analyze_fsm(
 
             DATA_DUMP_MODE: begin
                 if (data_in) output_channels <= {16'd0, i_val, q_val};
-                data_output_trigger <= {4'd0, data_in};
+                data_output_trigger <= {data_in};
             end 
 
             CLASSIFY_MODE: begin
                 output_channels <= classify_output;
-                data_output_trigger <= {4'd0, classify_trigger};
+                data_output_trigger <= {classify_trigger};
             end 
 
             HIST2D_MODE: begin
                 output_channels <= {48'd0,8'd0,hist_i_output,8'd0,hist_q_output};
-                data_output_trigger <= {4'd0, hist2d_trigger};
+                data_output_trigger <= {hist2d_trigger};
             end
 
             default: output_channels <= 64'b0; 

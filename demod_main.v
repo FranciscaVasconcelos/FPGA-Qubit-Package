@@ -39,6 +39,14 @@ module demod_main(
     input [15:0] data1_in_sdi_dataStreamFCx5_S_data_4,
     input data1_in_sdi_dataStreamFCx5_S_valid,
 
+    // Output 2
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data2_out_sdi_dataStreamFCx5_M_data_4,
+    output data2_out_sdi_dataStreamFCx5_M_valid,
+
     // Output 3
     output [15:0] data3_out_sdi_dataStreamFCx5_M_data_0,
     output [15:0] data3_out_sdi_dataStreamFCx5_M_data_1,
@@ -48,7 +56,8 @@ module demod_main(
     output data3_out_sdi_dataStreamFCx5_M_valid,
 
     // Trigger out
-    output [4:0] trigger3_out
+    output [4:0] trigger3_out,
+    output [4:0] trigger2_out
 
     );
     
@@ -64,8 +73,16 @@ module demod_main(
     wire signed [31:0] i_pt_line, q_pt_line;
     wire output_mode;
     
-    wire [79:0] analyze_fsm_output;
+    assign trigger2_out = {4'b0, iq_valid};
     
+    wire [79:0] analyze_fsm_output;
+    assign data2_out_sdi_dataStreamFCx5_M_data_0 = 16'b0;
+    assign data2_out_sdi_dataStreamFCx5_M_data_1 = q_val[15:0];
+    assign data2_out_sdi_dataStreamFCx5_M_data_2 = q_val[31:16];
+    assign data2_out_sdi_dataStreamFCx5_M_data_3 = i_val[15:0];
+    assign data2_out_sdi_dataStreamFCx5_M_data_4 = i_val[31:16];
+    assign data2_out_sdi_dataStreamFCx5_M_valid = 1;
+
     assign MEM_sdi_mem_M_rdData = 32'b0;
     
     assign data3_out_sdi_dataStreamFCx5_M_data_4 = analyze_fsm_output[79:64];
@@ -73,6 +90,7 @@ module demod_main(
     assign data3_out_sdi_dataStreamFCx5_M_data_2 = analyze_fsm_output[47:32];
     assign data3_out_sdi_dataStreamFCx5_M_data_1 = analyze_fsm_output[31:16];
     assign data3_out_sdi_dataStreamFCx5_M_data_0 = analyze_fsm_output[15:0];
+    //assign data3_out_sdi_dataStreamFCx5_M_valid = 1;
     
     top_main tm(
         // inputs
@@ -131,7 +149,7 @@ module demod_main(
         .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
     
         // output data
-        .data_output_trigger(trigger3_out),
+        .data_output_trigger(data3_out_sdi_dataStreamFCx5_M_valid),
         .output_channels(analyze_fsm_output));
 
 endmodule // demod_top
