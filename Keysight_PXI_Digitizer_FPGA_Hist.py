@@ -70,7 +70,7 @@ class Driver(LabberDriver):
         self.fpga_config = self.getValue('FPGA Hardware')
 
         if self.fpga_config == 'FPGA QB package (alpha)':
-            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_debug_test_2018-12-08T19_34_44.sbp')
+            Bitstream = os.path.join(os.path.dirname(__file__), 'firmware_debug_test_2018-12-10T07_34_18.sbp')
 
         if (self.dig.FPGAload(Bitstream)) < 0:
             raise Error('FPGA not loaded, check FPGA version...')
@@ -231,6 +231,9 @@ class Driver(LabberDriver):
             elif quant.name.startswith('FPGA Q Value'):
                 self.log('FPGA data_dump_q_val:', self.data_dump_q_val)
                 value = self.data_dump_q_val[0]
+            elif quant.name.startswith('FPGA I-Q Complex Value'):
+            #    self.log('FPGA data_dump_iq_complex_val:', self.data_dump_iq_complex_val)
+                value = self.data_dump_iq_complex_val[0]
             elif quant.name.startswith('FPGA Excited Count'):
                 value = self.classify_excited_count[0]
             elif quant.name.startswith('FPGA Ground Count'):
@@ -241,8 +244,13 @@ class Driver(LabberDriver):
                 value = self.classify_state[0]
             elif quant.name.startswith('FPGA I Hist2D Bin'):
                 value = self.histogram_i_bin[0]
+                self.log('FPGA I Hist2D Bin:', self.histogram_i_bin[0])
             elif quant.name.startswith('FPGA Q Hist2D Bin'):
                 value = self.histogram_q_bin[0]
+                self.log('FPGA Q Hist2D Bin:', self.histogram_q_bin[0])
+            elif quant.name.startswith('FPGA I-Q Hist2D Bin Complex'):
+                value = self.histogram_iq_bin_complex[0]
+                self.log('FPGA I-Q Hist2D Bin Complex:', self.histogram_iq_bin_complex[0])
 
         else:
             # for all others, return local value
@@ -313,12 +321,14 @@ class Driver(LabberDriver):
             self.smsb_info_str = []
             self.data_dump_i_val = [0]
             self.data_dump_q_val = [0]
+            self.data_dump_iq_complex_val = [0]
             self.classify_excited_count = [0]
             self.classify_ground_count = [0]
             self.classify_line_count = [0]
             self.classify_state = [0]
             self.histogram_i_bin = [0]
             self.histogram_q_bin = [0]
+            self.histogram_iq_bin_complex = [0]
 
             # configure trigger for all active channels
             for nCh in lCh:
@@ -491,46 +501,49 @@ class Driver(LabberDriver):
         isStream = self.getValue("Stream")
 
         if analyze_mode == 'Data Dump':
-            q_val_lsb = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
-            q_val_msb = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
-            i_val_lsb = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
-            i_val_msb = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
+            q_val_lsb = self.lTrace_raw[3][np.arange(20, nPts * nCycle, nPts)]
+            q_val_msb = self.lTrace_raw[3][np.arange(21, nPts * nCycle, nPts)]
+            i_val_lsb = self.lTrace_raw[3][np.arange(22, nPts * nCycle, nPts)]
+            i_val_msb = self.lTrace_raw[3][np.arange(23, nPts * nCycle, nPts)]
+            zeros = self.lTrace_raw[3][np.arange(24, nPts * nCycle, nPts)]
             q_val = q_val_lsb.astype('uint16') + (q_val_msb.astype('uint16') * (2**16))
             i_val = i_val_lsb.astype('uint16') + (i_val_msb.astype('uint16') * (2**16))
 
             self.data_dump_i_val = i_val.astype('int32') / 2**32 / accum_length * lScale[0]
             self.data_dump_q_val =  q_val.astype('int32') / 2**32 / accum_length * lScale[1]
+            self.data_dump_iq_complex_val = self.data_dump_i_val + self.data_dump_q_val * 1j
 
         elif analyze_mode == 'Classify' and not isStream:
-            line_val = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
-            ground_val = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
-            excited_val = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
-            data_count = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
+            line_val = self.lTrace_raw[3][np.arange(20, nPts * nCycle, nPts)]
+            ground_val = self.lTrace_raw[3][np.arange(21, nPts * nCycle, nPts)]
+            excited_val = self.lTrace_raw[3][np.arange(22, nPts * nCycle, nPts)]
+            data_count = self.lTrace_raw[3][np.arange(23, nPts * nCycle, nPts)]
+            zeros = self.lTrace_raw[3][np.arange(24, nPts * nCycle, nPts)]
 
             self.classify_excited_count = excited_val
             self.classify_ground_count = ground_val
             self.classify_line_count = line_val
 
         elif analyze_mode == 'Classify' and isStream:
-            state_val = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
-            zeros1 = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
-            zeros2 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
-            zeros3 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros4 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
+            state_val = self.lTrace_raw[3][np.arange(20, nPts * nCycle, nPts)]
+            zeros1 = self.lTrace_raw[3][np.arange(21, nPts * nCycle, nPts)]
+            zeros2 = self.lTrace_raw[3][np.arange(22, nPts * nCycle, nPts)]
+            zeros3 = self.lTrace_raw[3][np.arange(23, nPts * nCycle, nPts)]
+            zeros4 = self.lTrace_raw[3][np.arange(24, nPts * nCycle, nPts)]
             
             self.classify_state = state_val
 
         elif analyze_mode == 'Histogram':
-            hist_q = self.lTrace_raw[3][np.arange(0, nPts * nCycle, nPts)]
-            hist_i = self.lTrace_raw[3][np.arange(1, nPts * nCycle, nPts)]
-            zeros1 = self.lTrace_raw[3][np.arange(2, nPts * nCycle, nPts)]
-            zeros2 = self.lTrace_raw[3][np.arange(3, nPts * nCycle, nPts)]
-            zeros3 = self.lTrace_raw[3][np.arange(4, nPts * nCycle, nPts)]
+            hist_q = self.lTrace_raw[3][np.arange(20, nPts * nCycle, nPts)]
+            hist_i = self.lTrace_raw[3][np.arange(21, nPts * nCycle, nPts)]
+            zeros1 = self.lTrace_raw[3][np.arange(22, nPts * nCycle, nPts)]
+            zeros2 = self.lTrace_raw[3][np.arange(23, nPts * nCycle, nPts)]
+            zeros3 = self.lTrace_raw[3][np.arange(24, nPts * nCycle, nPts)]
 
+            self.log("inHist!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             self.histogram_i_bin = hist_i
             self.histogram_q_bin = hist_q
+            self.histogram_iq_bin_complex = (hist_i*self.getValue('I Bin Width') + hist_q * 1j * self.getValue('Q Bin Width'))  + self.getValue('I Bin Min') + self.getValue('Q Bin Width') * 1j
 
     def setFPGALOfreq(self, demod_LO_freq):
         '''' Set Demod freq and LUT parameters'''
@@ -563,33 +576,43 @@ class Driver(LabberDriver):
         lut_0[1] = 0b00
         for i in range(4, -1, -1):
             lut_0[1] = lut_0[1] << 6 | lut[0][i]
+
         lut_1[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[1][i]
+            lut_1[1] = lut_1[1] << 6 | lut[1][i]
+
         lut_2[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[2][i]
+            lut_2[1] = lut_2[1] << 6 | lut[2][i]
+
         lut_3[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[3][i]
+            lut_3[1] = lut_3[1] << 6 | lut[3][i]
+
         lut_4[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[4][i]
+            lut_4[1] = lut_4[1] << 6 | lut[4][i]
+
         lut_5[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[5][i]
+            lut_5[1] = lut_5[1] << 6 | lut[5][i]
+
         lut_6[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[6][i]
+            lut_6[1] = lut_6[1] << 6 | lut[6][i]
+
         lut_7[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[7][i]
+            lut_7[1] = lut_7[1] << 6 | lut[7][i]
+
         lut_8[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[8][i]
+            lut_8[1] = lut_8[1] << 6 | lut[8][i]
+
         lut_9[1] = 0b00
         for i in range(4, -1, -1):
-            lut_0[1] = lut_0[1] << 6 | lut[9][i]
+            lut_9[1] = lut_9[1] << 6 | lut[9][i]
+
 
         lo_demod_addr = 0xa
 
@@ -601,16 +624,16 @@ class Driver(LabberDriver):
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, demod_freq, 0x0, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
         # Set lookup table in FPGA
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_0, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_1, lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_2, lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_3, lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_4, lo_demod_addr + 4, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_5, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_6, lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_7, lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_8, lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
-        self.dig.FPGAwritePCport(FPGA_PcPort_channel, lut_9, lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_0), lo_demod_addr, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_1), lo_demod_addr + 1, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_2), lo_demod_addr + 2, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_3), lo_demod_addr + 3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_4), lo_demod_addr + 4, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_5), lo_demod_addr + 5, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_6), lo_demod_addr + 6, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_7), lo_demod_addr + 7, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_8), lo_demod_addr + 8, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
+        self.dig.FPGAwritePCport(FPGA_PcPort_channel, np.int32(lut_9), lo_demod_addr + 9, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
 
         buffer[1] = 1  # valid bit to finalize the configuration
         self.dig.FPGAwritePCport(FPGA_PcPort_channel, buffer, 0x3, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
@@ -633,32 +656,42 @@ class Driver(LabberDriver):
         ''' Set Histogram 2D parameters'''
         FPGA_PcPort_channel = 0
 
-        if param in ('Analyze Mode'):
+        if param in ['Analyze Mode']:
             analyze_mode = np.zeros((2, 1), dtype=int)
-            analyze_mode[1] = np.int32(self.getValueIndex(param))
+            if self.getValueIndex(param) == 2:
+                analyze_mode[1] = np.int32(3)
+            else:
+                analyze_mode[1] = np.int32(self.getValueIndex(param))
+
+            self.log('Analyze Mode:', analyze_mode)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, analyze_mode, 0x1e, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = analyze_mode[1]
         elif param in ['Stream']:
             isStream = np.zeros((2, 1), dtype=int)
             isStream[1] = np.int32(self.getValue(param))
+            self.log('Stream:', isStream)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, isStream, 0x02, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = isStream[1]
-        elif param in ('I Bin Width', 'Q Bin Width'):
+        elif param in ['I Bin Width', 'Q Bin Width']:
             bin_width = np.zeros((2, 1), dtype=int)
             bin_width[1] = np.int32(self.getValue(param))
             if param == 'I Bin Width':
                 address = 0x1f
+                self.log('I Bin Width:', bin_width)
             else:
                 address = 0x20
+                self.log('Q Bin Width:', bin_width)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_width, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = bin_width[1]
-        elif param in ('I Bin Num', 'Q Bin Num'):
+        elif param in ['I Bin Num', 'Q Bin Num']:
             bin_num = np.zeros((2, 1), dtype=int)
             bin_num[1] = np.int32(self.getValue(param))
             if param == 'I Bin Num':
                 address = 0x21
+                self.log('I Bin Num:', bin_num)
             else:
                 address = 0x22
+                self.log('Q Bin Num:', bin_num)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_num, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = bin_num[1]
         elif param in ('I Bin Min', 'Q Bin Min'):
@@ -666,8 +699,10 @@ class Driver(LabberDriver):
             bin_min[1] = np.int32(self.getValue(param))
             if param == 'I Bin Min':
                 address = 0x23
+                self.log('I Bin Min:', bin_min)
             else:
                 address = 0x24
+                self.log('Q Bin Min:', bin_min)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, bin_min, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = bin_min[1]
         elif param in ('I Vector Perpendicular', 'Q Vector Perpendicular'):
@@ -675,8 +710,10 @@ class Driver(LabberDriver):
             vec_perp[1] = np.int32(self.getValue(param))
             if param == 'I Vector Perpendicular':
                 address = 0x25
+                self.log('I Vector Perpendicular:', vec_perp)
             else:
                 address = 0x26
+                self.log('Q Vector Perpendicular:', vec_perp)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, vec_perp, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = vec_perp[1]
         elif param in ('I Line Point', 'Q Line Point'):
@@ -684,8 +721,10 @@ class Driver(LabberDriver):
             line_pt[1] = np.int32(self.getValue(param))
             if param == 'I Line Point':
                 address = 0x27
+                self.log('I Line Point:', line_pt)
             else:
                 address = 0x28
+                self.log('Q Line Point:', line_pt)
             self.dig.FPGAwritePCport(FPGA_PcPort_channel, line_pt, address, keysightSD1.SD_AddressingMode.FIXED, keysightSD1.SD_AccessMode.NONDMA)
             value = line_pt[1]
 

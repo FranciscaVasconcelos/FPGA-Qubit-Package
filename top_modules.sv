@@ -32,6 +32,7 @@ module config_params(
     always @(posedge clk100) begin
         if (reset) begin // reset to default
             demod_freq <= 5'd5; // 50 MHz
+            
             demod_mod50_LUT <= {{6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
                                 {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
@@ -42,7 +43,7 @@ module config_params(
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
                                 {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
                                 {6'd20, 6'd15, 6'd10, 6'd05, 6'd00}};
-            sample_length <= 11'd2000;
+            /*sample_length <= 11'd2000;
             sample_freq <= 6'd5; // 100 MHz
             delay_time <= 14'd5000; // 50 us
             analyze_mode <= 2'd01;
@@ -52,12 +53,28 @@ module config_params(
             q_bin_num <= 8'd10;
             i_bin_min <= 16'd0;
             q_bin_min <= 16'd0;
-            i_vec_perp <= 32'd1;
+            i_vec_perp <= 32'd0;
+            q_vec_perp <= 32'd1;
+            i_pt_line <= 32'd0;
+            q_pt_line <= 32'd1
+            output_mode <= 1'd0;
+            num_data_pts <= 16'd10000;*/
+            sample_length <= 11'd10;
+            sample_freq <= 6'd5; // 100 MHz
+            delay_time <= 14'd10; // 50 us
+            analyze_mode <= 2'b11;
+            i_bin_width <= 16'd100;
+            q_bin_width <= 16'd100;
+            i_bin_num <= 8'd10;
+            q_bin_num <= 8'd10;
+            i_bin_min <= 16'd0;
+            q_bin_min <= 16'd0;
+            i_vec_perp <= 32'd0;
             q_vec_perp <= 32'd1;
             i_pt_line <= 32'd0;
             q_pt_line <= 32'd1;
-            output_mode <= 1'd0;
-            num_data_pts <= 16'd10;
+            output_mode <= 1'd1;
+            num_data_pts <= 16'd3;
         end
         else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values
             // search for correct address
@@ -345,12 +362,14 @@ module multiplier(
     // output
     // rotation data values (multiplied by sine and cosine)
     // outputs always active, only non-zero for sampled values
-    output reg signed [4:0] [31:0] data_i_rot,
-    output reg signed [4:0] [31:0] data_q_rot);
+    output reg signed [4:0] [59:0] data_i_rot,
+    output reg signed [4:0] [59:0] data_q_rot,
+    output signed [4:0] [25:0] sin_theta,
+    output signed [4:0] [25:0] cos_theta);
 
     // create outputs for DDS compiler
-    wire signed [4:0] [25:0] sin_theta;
-    wire signed [4:0] [25:0] cos_theta;
+    //wire signed [4:0] [25:0] sin_theta;
+    //wire signed [4:0] [25:0] cos_theta;
     wire signed [4:0] [63:0] sin_cos;
     
     // set up our concatenated sin_cos bus
@@ -433,11 +452,11 @@ module integrator(
     input reset,
     input start,
     input [10:0] sample_length,
-    input signed [4:0] [31:0] data_i_rot, // latency: 2
-    input signed [4:0] [31:0] data_q_rot,
+    input signed [4:0] [59:0] data_i_rot, // latency: 2
+    input signed [4:0] [59:0] data_q_rot,
     output reg iq_valid, // asserted HIGH on the same clock cycle as when integrated I and Q values are valid
-    output reg signed [31:0] i_val_tot,
-    output reg signed [31:0] q_val_tot);
+    output signed [31:0] i_val_tot,
+    output signed [31:0] q_val_tot);
     
     // state parameters
     parameter IDLE = 0;
@@ -448,8 +467,14 @@ module integrator(
     reg [10:0] counter = 0;
     
     // store added I and Q values 
-    reg [4:0] [31:0] i_vals;
-    reg [4:0] [31:0] q_vals;
+    reg [4:0] [59:0] i_vals;
+    reg [4:0] [59:0] q_vals;
+    
+    reg [59:0] i_val_sum;
+    reg [59:0] q_val_sum;
+    
+    assign i_val_tot = i_val_sum[59:28];
+    assign q_val_tot = q_val_sum[59:28];
     
     integer i;
     
@@ -457,8 +482,8 @@ module integrator(
         if (reset) begin // at reset, stop integrating and reset sums to zero
             state <= IDLE;
             counter <= 11'b0;
-            i_vals <= {5{32'b0}};
-            q_vals <= {5{32'b0}};
+            i_vals <= 0;
+            q_vals <= 0;
         end
 
         case (state)
@@ -466,8 +491,8 @@ module integrator(
                 iq_valid <= 0;
                 if (start) begin // at start change states
                     state <= DELAY;
-                    i_vals <= {5{32'b0}};
-                    q_vals <= {5{32'b0}};
+                    i_vals <= 0;
+                    q_vals <= 0;
                 end
             end
             
@@ -488,8 +513,8 @@ module integrator(
                     counter <= 0;
                     // at end of sample length, sum over indices
                     // I and Q total values valid until end of next sampling period
-                    i_val_tot <= i_vals[0] + i_vals[1] + i_vals[2] + i_vals[3] + i_vals[4];
-                    q_val_tot <= q_vals[0] + q_vals[1] + q_vals[2] + q_vals[3] + q_vals[4];
+                    i_val_sum <= i_vals[0] + i_vals[1] + i_vals[2] + i_vals[3] + i_vals[4];
+                    q_val_sum <= q_vals[0] + q_vals[1] + q_vals[2] + q_vals[3] + q_vals[4];
                     iq_valid <= 1;
                 end
             end

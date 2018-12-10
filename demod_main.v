@@ -39,6 +39,22 @@ module demod_main(
     input [15:0] data1_in_sdi_dataStreamFCx5_S_data_4,
     input data1_in_sdi_dataStreamFCx5_S_valid,
 
+    // Output 0
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data0_out_sdi_dataStreamFCx5_M_data_4,
+    output data0_out_sdi_dataStreamFCx5_M_valid,
+
+    // Output 1
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_0,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_1,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_2,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_3,
+    output [15:0] data1_out_sdi_dataStreamFCx5_M_data_4,
+    output data1_out_sdi_dataStreamFCx5_M_valid,
+    
     // Output 2
     output [15:0] data2_out_sdi_dataStreamFCx5_M_data_0,
     output [15:0] data2_out_sdi_dataStreamFCx5_M_data_1,
@@ -54,7 +70,7 @@ module demod_main(
     output [15:0] data3_out_sdi_dataStreamFCx5_M_data_3,
     output [15:0] data3_out_sdi_dataStreamFCx5_M_data_4,
     output data3_out_sdi_dataStreamFCx5_M_valid,
-
+    
     // Trigger out
     output [4:0] trigger3_out,
     output [4:0] trigger2_out
@@ -90,7 +106,25 @@ module demod_main(
     assign data3_out_sdi_dataStreamFCx5_M_data_2 = analyze_fsm_output[47:32];
     assign data3_out_sdi_dataStreamFCx5_M_data_1 = analyze_fsm_output[31:16];
     assign data3_out_sdi_dataStreamFCx5_M_data_0 = analyze_fsm_output[15:0];
-    //assign data3_out_sdi_dataStreamFCx5_M_valid = 1;
+    assign data3_out_sdi_dataStreamFCx5_M_valid = 1;
+    
+    wire [129:0] sin_theta;
+    wire [129:0] cos_theta;
+    
+    assign data0_out_sdi_dataStreamFCx5_M_valid = 1;
+    assign data1_out_sdi_dataStreamFCx5_M_valid = 1;
+    
+    assign data0_out_sdi_dataStreamFCx5_M_data_0 = sin_theta[25:10];
+    assign data0_out_sdi_dataStreamFCx5_M_data_1 = sin_theta[51:36];
+    assign data0_out_sdi_dataStreamFCx5_M_data_2 = sin_theta[77:62];
+    assign data0_out_sdi_dataStreamFCx5_M_data_3 = sin_theta[103:88];
+    assign data0_out_sdi_dataStreamFCx5_M_data_4 = sin_theta[129:114];
+
+    assign data1_out_sdi_dataStreamFCx5_M_data_0 = cos_theta[25:10];
+    assign data1_out_sdi_dataStreamFCx5_M_data_1 = cos_theta[51:36];
+    assign data1_out_sdi_dataStreamFCx5_M_data_2 = cos_theta[77:62];
+    assign data1_out_sdi_dataStreamFCx5_M_data_3 = cos_theta[103:88];
+    assign data1_out_sdi_dataStreamFCx5_M_data_4 = cos_theta[129:114];
     
     top_main tm(
         // inputs
@@ -124,7 +158,8 @@ module demod_main(
         .i_bin_min(i_bin_min), .q_bin_min(q_bin_min),
         .i_vec_perp(i_vec_perp), .q_vec_perp(q_vec_perp),
         .i_pt_line(i_pt_line), .q_pt_line(q_pt_line),
-        .output_mode(output_mode));
+        .output_mode(output_mode),
+        .sin_theta(sin_theta), .cos_theta(cos_theta));
 
     analyze_fsm analyze_module(
           
@@ -149,7 +184,7 @@ module demod_main(
         .i_pt_line(i_pt_line), .q_pt_line(q_pt_line), 
     
         // output data
-        .data_output_trigger(data3_out_sdi_dataStreamFCx5_M_valid),
+        .data_output_trigger(trigger3_out),
         .output_channels(analyze_fsm_output));
 
 endmodule // demod_top

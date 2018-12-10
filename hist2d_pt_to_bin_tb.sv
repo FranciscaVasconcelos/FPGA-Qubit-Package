@@ -26,46 +26,42 @@ module hist2d_pt_to_bin_tb(
     reg clk100 = 0;
     
     
-    always #10 clk100 = ~clk100;
+    always #5 clk100 = ~clk100;
     
     // dynamic input
     reg data_in;
+    reg analyze_mode = 2'b11;
     reg signed [31:0] i_val, q_val;
 
-    reg [7:0] i_bin_num = 10, q_bin_num = 10;
-    reg [15:0] i_bin_width = 1, q_bin_width = 1;
+    reg [7:0] i_bin_num = 8'd133, q_bin_num = 8'd255;
+    reg [15:0] i_bin_width = 1, q_bin_width = 30;
     reg signed [15:0] i_min = 0, q_min = 0;
-    reg [15:0] num_data_pts = 5;
-    reg stream_mode = 0;
     
     wire i_q_found;
-    wire bin_found;
     wire [7:0] i_bin_coord;
-    wire [7:0] q_bin_coord; 
-    wire [15:0] bin_val; 
+    wire [7:0] q_bin_coord;  
     
     reg [15:0] count = 0;
     
    
     initial begin
-        i_val = -32'd3;
-        q_val = -32'd3;
+        i_val = 32'b1111_1111_1111_1111_0000_0000_0000_0000;
+        q_val = 32'b0000_0000_0000_0000_1111_1111_1111_1111;
         #2
-        while(count < num_data_pts) begin
+        forever begin
             data_in = 1;
-            #20;
-            i_val = i_val + 1;
-            q_val = q_val + 1;
+            #10;
+            i_val = i_val  - 22;
+            q_val = q_val + 30;
             data_in = 0;
             count = count + 1;   
-            #300;
+            #500;
         end
     end
    
  
-    hist2d uut(.clk100(clk100), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num),
-               .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), .num_data_pts(num_data_pts),
-               .stream_mode(stream_mode), .i_q_found(i_q_found), .bin_found(bin_found), .i_bin_coord(i_bin_coord), 
-               .q_bin_coord(q_bin_coord), .bin_val(bin_val));
+    hist2d_pt_to_bin uut(.clk100(clk100), .system_reset(1'b0), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), .q_bin_num(q_bin_num),
+               .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), .q_min(q_min), 
+               .i_q_found_out(i_q_found), .i_bin_coord_out(i_bin_coord), .q_bin_coord_out(q_bin_coord));
 
 endmodule

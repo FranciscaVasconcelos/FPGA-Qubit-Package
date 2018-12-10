@@ -14,31 +14,37 @@ module bin_binary_search(
     output reg binned, // boolean that outputs 1 when value has been binned
     output reg [7:0] current); // contains value bin when binned=1 (in range 0 to num_bins, 63 if out of range)
     
-    reg signed [31:0] val; // for storing value when data_in = 1;
+    reg signed [31:0] val = 0; // for storing value when data_in = 1;
     
-    reg [7:0] max; // max possible bin value
-    reg [7:0] min; // max possible bin value
+    reg [7:0] max = 8'd10; // max possible bin value
+    reg [7:0] min = 0; // min possible bin value
     reg signed [31:0] bin_value; // current bin value we are comparing to
     
     wire signed [8:0] current_signed;
     wire signed [16:0] bin_width_signed;
+    wire signed [31:0] bin_width_long_signed;
     
     assign current_signed = current; // convert current to signed 
     assign bin_width_signed = bin_width; // convert bin_width to signed
+    assign bin_width_long_signed = bin_width; // convert bin_width to longer signed
     
-    reg [1:0] search_state; // make FSM to run search algo and properly update values
-    parameter UPDATE_BIN_VAL = 2'b00;
-    parameter RUN_ALGO = 2'b01;
-    parameter OUTPUT_RESULT = 2'b10;
-    parameter RESET = 2'b11;
+    reg [2:0] search_state = 3'b011; // make FSM to run search algo and properly update values
+    parameter UPDATE_BIN_VAL = 3'b000;
+    parameter STALL_1 = 3'b100;
+    parameter RUN_ALGO = 3'b001;
+    parameter OUTPUT_RESULT = 3'b010;
+    parameter RESET = 3'b011;
     
     always @(posedge clk100) begin
         
-        if(system_reset) search_state = RESET;
+        if(system_reset) begin
+            search_state = RESET;
+            max = num_bins;
+        end
         else begin
             case(search_state)
                 UPDATE_BIN_VAL: begin
-                    bin_value <= origin+(current_signed*bin_width_signed);
+                    bin_value <= origin+(current_signed*bin_width_long_signed);
                     search_state <= RUN_ALGO;
                 end
                 
@@ -69,7 +75,7 @@ module bin_binary_search(
                     // value in current or larger bin
                     else begin
                         // boundaries have converged to bin
-                        if (val < bin_value + bin_width_signed) begin
+                        if (val - bin_value < bin_width_signed) begin
                             current <= min;
                             search_state <= OUTPUT_RESULT;
                         end
@@ -95,10 +101,9 @@ module bin_binary_search(
                 RESET: begin
                     binned <= 0;
                     max <= num_bins;
-                    min <= 6'b0;
+                    min <= 8'b0;
                     current <= num_bins>>1; // start at middle of range
                     bin_value <= 32'd0;
-                    binned <= 0;
                     if(data_in) begin
                         val <= value;
                         search_state <= UPDATE_BIN_VAL;
@@ -131,9 +136,9 @@ module hist2d_pt_to_bin(
         output mem_reset,
         output [15:0] mem_write_val,*/
         
-        output reg i_q_found, // boolean - 1 indicated valid data output for ! stream mode
-        output reg [7:0] i_bin_coord, // can have up to 255 bins along i direction (256th bin counts # outside range) 
-        output reg [7:0] q_bin_coord // can have up to 255 bins along q direction (256th bin counts # outside range) 
+        output i_q_found_out, // boolean - 1 indicated valid data output for ! stream mode
+        output [7:0] i_bin_coord_out, // can have up to 255 bins along i direction (256th bin counts # outside range) 
+        output [7:0] q_bin_coord_out // can have up to 255 bins along q direction (256th bin counts # outside range) 
     );
     
     wire i_bin_found; // boolean: 1 when bin # for i data pt is found
@@ -144,15 +149,21 @@ module hist2d_pt_to_bin(
     wire [7:0] q_bin_val;
     reg [7:0] q_bin_store;
 
-    reg [1:0] hist_state; // fsm to do 2d hist sequentially
+    reg [1:0] hist_state = 2'b00; // fsm to do 2d hist sequentially
     parameter SEARCHING = 2'b00;
     parameter ONE_FOUND = 2'b01;
     parameter TWO_FOUND = 2'b10;
     parameter SEARCH_RESET = 2'b11;
     
     //reg store_data = 0;
-
     
+    reg i_q_found = 0;
+    reg [7:0] i_bin_coord = 0;
+    reg [7:0] q_bin_coord = 0; 
+    
+    assign i_q_found_out = i_q_found;
+    assign i_bin_coord_out = i_bin_coord;
+    assign q_bin_coord_out = q_bin_coord;
 
     always @(posedge clk100) begin
         if(system_reset) hist_state = SEARCH_RESET;
@@ -194,8 +205,6 @@ module hist2d_pt_to_bin(
                 end
                 
                 SEARCH_RESET: begin
-                    i_bin_coord <= 0;
-                    q_bin_coord <= 0;
                     //store_data <= 0;
                     i_q_found <= 0;
                     if(data_in) hist_state <= SEARCHING;
@@ -247,7 +256,7 @@ module classify(
     parameter CLASSIFY_LINE = 2'b11;
     parameter ERROR = 2'b00;
     
-    reg [1:0] comp_state; // fsm to sequentially perform computation steps
+    reg [1:0] comp_state = 2'b10; // fsm to sequentially perform computation steps
     parameter DOT_PRODUCT = 2'b00;
     parameter CLASSIFY = 2'b01;
     parameter RESET = 2'b10;
@@ -261,7 +270,6 @@ module classify(
         end
         else begin
             case(comp_state)
-                
                 DOT_PRODUCT: begin
                     dot_product <= i_vec_pt*i_vec_perp + q_vec_pt*q_vec_perp;
                     comp_state <= CLASSIFY;
@@ -488,7 +496,7 @@ module analyze_fsm(
     // histogram inputs 
     input [7:0] i_bin_num, q_bin_num, // number of bins on each axis
     input [15:0] i_bin_width, q_bin_width, // bin width on each axis
-    input [15:0] i_min, q_min, // origin pt of 0,0 bin
+    input signed [15:0] i_min, q_min, // origin pt of 0,0 bin
 
     // classification inputs
     input signed [31:0] i_vec_perp, q_vec_perp,
@@ -516,18 +524,19 @@ module analyze_fsm(
         case(analyze_mode)
 
             DATA_DUMP_MODE: begin
-                if (data_in) output_channels <= {16'd0, i_val, q_val};
-                data_output_trigger <= {data_in};
+                if (data_in)
+                    output_channels <= {16'd0, i_val, q_val};
+                data_output_trigger <= {4'd0, data_in};
             end 
 
             CLASSIFY_MODE: begin
                 output_channels <= classify_output;
-                data_output_trigger <= {classify_trigger};
+                data_output_trigger <= {4'd0, classify_trigger};
             end 
 
             HIST2D_MODE: begin
                 output_channels <= {48'd0,8'd0,hist_i_output,8'd0,hist_q_output};
-                data_output_trigger <= {hist2d_trigger};
+                data_output_trigger <= {4'd0, hist2d_trigger};
             end
 
             default: output_channels <= 64'b0; 
@@ -548,7 +557,7 @@ module analyze_fsm(
     
     hist2d_pt_to_bin conv(.clk100(clk100), .system_reset(system_reset), .data_in(data_in), .i_val(i_val), .q_val(q_val), .i_bin_num(i_bin_num), 
                            .q_bin_num(q_bin_num), .i_bin_width(i_bin_width), .q_bin_width(q_bin_width), .i_min(i_min), 
-                           .q_min(q_min), .i_q_found(hist2d_trigger), .i_bin_coord(hist_i_output), .q_bin_coord(hist_q_output));
+                           .q_min(q_min), .i_q_found_out(hist2d_trigger), .i_bin_coord_out(hist_i_output), .q_bin_coord_out(hist_q_output));
                            //.mem_read_val(), .mem_address(), .mem_write(), .mem_reset(), .mem_write_val());
     
 endmodule // analyze_fsm

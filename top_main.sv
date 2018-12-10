@@ -26,7 +26,9 @@ module top_main (
     output signed [15:0] i_bin_min, q_bin_min,
     output signed [31:0] i_vec_perp, q_vec_perp,
     output signed [31:0] i_pt_line, q_pt_line,
-    output output_mode);
+    output output_mode,
+    output signed [4:0] [25:0] sin_theta,
+    output signed [4:0] [25:0] cos_theta);
 
     // configurated values
     wire [4:0] demod_freq;
@@ -74,8 +76,8 @@ module top_main (
 	wire signed [4:0] [15:0] data_q_shift;
 
 	// assign data arrays
-	assign data_i_in = {data0_in_0, data0_in_1, data0_in_2, data0_in_3, data0_in_4};
-	assign data_q_in = {data1_in_0, data1_in_1, data1_in_2, data1_in_3, data1_in_4};
+	assign data_i_in = {data0_in_4, data0_in_3, data0_in_2, data0_in_1, data0_in_0};
+	assign data_q_in = {data1_in_4, data1_in_3, data1_in_2, data1_in_1, data1_in_0};
 
 	wire [4:0] [7:0] phase_vals; // create phase value array
 
@@ -92,8 +94,8 @@ module top_main (
     // shifted arrays ensure matching between phase_vals and I-Q data
     
 	// set up rotated data arrays
-	wire signed [4:0] [31:0] data_i_rot;
-	wire signed [4:0] [31:0] data_q_rot;
+	wire signed [4:0] [59:0] data_i_rot;
+	wire signed [4:0] [59:0] data_q_rot;
 
 	// instantiate multiplier
 	multiplier multiplier_main(
@@ -102,7 +104,8 @@ module top_main (
 		.phase_vals(phase_vals),
 		.data_i_in(data_i_shift), .data_q_in(data_q_shift), // shifted values
 		// outputs
-		.data_i_rot(data_i_rot), .data_q_rot(data_q_rot)); // counter rotated outputs
+		.data_i_rot(data_i_rot), .data_q_rot(data_q_rot),
+		.sin_theta(sin_theta), .cos_theta(cos_theta)); // counter rotated outputs
 
 	// instantiate integrator
 	integrator integrator_main(
