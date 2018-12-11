@@ -2,7 +2,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Top Modules version v1
 // Author: Megan Yamoah
-// Date: 28/11/2018
+// Date: 10/12/2018
 ////////////////////////////////////////////////////////////////////////////////
 
 module config_params(
@@ -15,7 +15,7 @@ module config_params(
     input [32:0] MEM_sdi_mem_S_wrData, // parameter value
 
     // outputs
-    output reg [4:0] demod_freq, // freq divided by 10 MHz
+    output reg [4:0] demod_freq, // freq divided by 10 MHz; we assume will only sample at increments of 10 MHz
     output reg [15:0] num_data_pts, // total number of measurements
     output reg [9:0] [4:0] [5:0] demod_mod50_LUT, // LUT containing values for mod 50 updated for each value of demod_freq
     output reg [10:0] sample_length, // max 20 us
@@ -31,21 +31,20 @@ module config_params(
 
     always @(posedge clk100) begin
         if (reset) begin // reset to default
-            demod_freq <= 5'd5; // 50 MHz
-            
-            demod_mod50_LUT <= {{6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
-                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
-                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
-                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
-                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
-                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
-                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
-                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00},
-                                {6'd45, 6'd40, 6'd35, 6'd30, 6'd25},
-                                {6'd20, 6'd15, 6'd10, 6'd05, 6'd00}};
-            /*sample_length <= 11'd2000;
-            sample_freq <= 6'd5; // 100 MHz
-            delay_time <= 14'd5000; // 50 us
+            demod_freq <= 5'd1; // 50 MHz
+            demod_mod50_LUT <= {{6'd49, 6'd48, 6'd47, 6'd46, 6'd45},
+                                {6'd44, 6'd43, 6'd42, 6'd41, 6'd40},
+                                {6'd39, 6'd38, 6'd37, 6'd36, 6'd35},
+                                {6'd34, 6'd33, 6'd32, 6'd31, 6'd30},
+                                {6'd29, 6'd28, 6'd27, 6'd26, 6'd25},
+                                {6'd24, 6'd23, 6'd22, 6'd21, 6'd20},
+                                {6'd19, 6'd18, 6'd17, 6'd16, 6'd15},
+                                {6'd14, 6'd13, 6'd12, 6'd11, 6'd10},
+                                {6'd09, 6'd08, 6'd07, 6'd06, 6'd05},
+                                {6'd04, 6'd03, 6'd02, 6'd01, 6'd00}};
+            sample_length <= 11'd20000;
+            sample_freq <= 6'd1; // 100 MHz
+            delay_time <= 14'd5; // 50 us
             analyze_mode <= 2'd01;
             i_bin_width <= 16'd100;
             q_bin_width <= 16'd100;
@@ -53,31 +52,16 @@ module config_params(
             q_bin_num <= 8'd10;
             i_bin_min <= 16'd0;
             q_bin_min <= 16'd0;
-            i_vec_perp <= 32'd0;
-            q_vec_perp <= 32'd1;
-            i_pt_line <= 32'd0;
-            q_pt_line <= 32'd1
-            output_mode <= 1'd0;
-            num_data_pts <= 16'd10000;*/
-            sample_length <= 11'd10;
-            sample_freq <= 6'd5; // 100 MHz
-            delay_time <= 14'd10; // 50 us
-            analyze_mode <= 2'b11;
-            i_bin_width <= 16'd100;
-            q_bin_width <= 16'd100;
-            i_bin_num <= 8'd10;
-            q_bin_num <= 8'd10;
-            i_bin_min <= 16'd0;
-            q_bin_min <= 16'd0;
-            i_vec_perp <= 32'd0;
+            i_vec_perp <= 32'd1;
             q_vec_perp <= 32'd1;
             i_pt_line <= 32'd0;
             q_pt_line <= 32'd1;
-            output_mode <= 1'd1;
-            num_data_pts <= 16'd3;
+            output_mode <= 1'd0;
+            num_data_pts <= 16'd10;
         end
         else if (MEM_sdi_mem_S_wrEn) begin // reconfigure values
             // search for correct address
+            // reconfigure general values
             if (MEM_sdi_mem_S_address == 14'd0)
                 demod_freq <= MEM_sdi_mem_S_wrData[4:0];
             else if (MEM_sdi_mem_S_address == 14'd1)
@@ -85,6 +69,7 @@ module config_params(
             else if (MEM_sdi_mem_S_address == 14'd2)
                 output_mode <= MEM_sdi_mem_S_wrData[0];
 
+            // reconfigure LUT values
             else if (MEM_sdi_mem_S_address == 14'd10)
                 demod_mod50_LUT[0] <= MEM_sdi_mem_S_wrData[29:0];
             else if (MEM_sdi_mem_S_address == 14'd11)
@@ -106,6 +91,7 @@ module config_params(
             else if (MEM_sdi_mem_S_address == 14'd19)
                 demod_mod50_LUT[9] <= MEM_sdi_mem_S_wrData[29:0];
 
+            // reconfigure sampling-type vaules
             else if (MEM_sdi_mem_S_address == 14'd20)
                 sample_length <= MEM_sdi_mem_S_wrData[10:0];
             else if (MEM_sdi_mem_S_address == 14'd21)
@@ -113,6 +99,7 @@ module config_params(
             else if (MEM_sdi_mem_S_address == 14'd22)
                 delay_time <= MEM_sdi_mem_S_wrData[13:0];
 
+            // reconfigure analysis-type values
             else if (MEM_sdi_mem_S_address == 14'd30)
                 analyze_mode <= MEM_sdi_mem_S_wrData[1:0];
             else if (MEM_sdi_mem_S_address == 14'd31)
@@ -140,7 +127,9 @@ module config_params(
 
 endmodule // config
 
-
+// timing module
+// this module sets how long to wait after the trigger to begin sampling data
+// often, data that arrives with the trigger is not yet clean
 module timing(  
     input clk100,
     input reset,
@@ -195,6 +184,10 @@ module timing(
 endmodule // timing
 
 
+// sampler module
+// decide which values to sample each clock cycle
+// does this by setting relevant phase values to non-zero values
+// samples to ignore we set corresponding phase values to zero
 module sampler(
     // inputs
     input clk100,
@@ -209,7 +202,7 @@ module sampler(
     // outputs
     output reg signed [4:0] [15:0] data_i_shift, // I and Q values shifted one clock cylce to match phase_vals
     output reg signed [4:0] [15:0] data_q_shift,
-    output reg [4:0] [7:0] phase_vals); // packed
+    output reg [4:0] [5:0] phase_vals); // packed
 
     // state parameter
     parameter IDLE = 0;
@@ -341,36 +334,31 @@ module sampler(
                     phase_vals <= {5{8'b0}};
                 end
             end
-
-            default: begin
-                counter <= 0;
-                state <= IDLE;
-                phase_vals <= {5{8'b0}};
-            end
         endcase
     end
 
 endmodule // sampler
 
 
+// multiplier module
+// instantiate DDS compiler and multiply relevant values
+// uses phase data from sampler module
 module multiplier(
     input clk100,
     input reset,
-    input [4:0] [7:0] phase_vals, // packed
+    input [4:0] [5:0] phase_vals, // packed
     input signed [4:0] [15:0] data_i_in,
     input signed [4:0] [15:0] data_q_in,
     // output
     // rotation data values (multiplied by sine and cosine)
     // outputs always active, only non-zero for sampled values
-    output reg signed [4:0] [59:0] data_i_rot,
-    output reg signed [4:0] [59:0] data_q_rot,
-    output signed [4:0] [25:0] sin_theta,
-    output signed [4:0] [25:0] cos_theta);
+    output reg signed [4:0] [56:0] data_i_rot,
+    output reg signed [4:0] [56:0] data_q_rot);
 
     // create outputs for DDS compiler
-    //wire signed [4:0] [25:0] sin_theta;
-    //wire signed [4:0] [25:0] cos_theta;
-    wire signed [4:0] [63:0] sin_cos;
+    wire signed [4:0] [25:0] sin_theta;
+    wire signed [4:0] [25:0] cos_theta;
+    wire [4:0] [63:0] sin_cos;
     
     // set up our concatenated sin_cos bus
     genvar g;
@@ -424,6 +412,7 @@ module multiplier(
     // create registers to hold our I and Q data in order to match with DDS output
     reg signed [4:0] [15:0] data_i_hold;
     reg signed [4:0] [15:0] data_q_hold;
+    reg signed [4:0] [5:0] phase_vals_hold;
 
     integer i;
 
@@ -433,27 +422,33 @@ module multiplier(
             data_q_rot <= {5{32'b0}};
         end
         else begin
+            // perform multiplication here
             for (i = 0; i < 5; i = i + 1) begin
-                data_i_rot[i] <= data_i_hold[i]*cos_theta[i] + data_q_hold[i]*sin_theta[i];
-                data_q_rot[i] <= data_q_hold[i]*cos_theta[i] - data_i_hold[i]*sin_theta[i];
+                if (~(phase_vals[i] == 0)) begin
+                    data_i_rot[i] <= data_i_hold[i]*cos_theta[i] + data_q_hold[i]*sin_theta[i];
+                    data_q_rot[i] <= data_q_hold[i]*cos_theta[i] - data_i_hold[i]*sin_theta[i];
+                end
             end
         end
         
         // clock our I and Q data
         data_i_hold <= data_i_in;
         data_q_hold <= data_q_in;
+        phase_vals_hold <= phase_vals;
     end
 
 endmodule // multiplier
 
 
+// integrator module
+// integrate all of our sampled values to average
 module integrator(
     input clk100,
     input reset,
     input start,
     input [10:0] sample_length,
-    input signed [4:0] [59:0] data_i_rot, // latency: 2
-    input signed [4:0] [59:0] data_q_rot,
+    input signed [4:0] [56:0] data_i_rot, // latency: 2
+    input signed [4:0] [56:0] data_q_rot,
     output reg iq_valid, // asserted HIGH on the same clock cycle as when integrated I and Q values are valid
     output signed [31:0] i_val_tot,
     output signed [31:0] q_val_tot);
@@ -467,14 +462,14 @@ module integrator(
     reg [10:0] counter = 0;
     
     // store added I and Q values 
-    reg [4:0] [59:0] i_vals;
-    reg [4:0] [59:0] q_vals;
+    reg [4:0] [56:0] i_vals = 0;
+    reg [4:0] [56:0] q_vals = 0;
     
-    reg [59:0] i_val_sum;
-    reg [59:0] q_val_sum;
+    reg [56:0] i_val_sum = 0;
+    reg [56:0] q_val_sum = 0;
     
-    assign i_val_tot = i_val_sum[59:28];
-    assign q_val_tot = q_val_sum[59:28];
+    assign i_val_tot = i_val_sum[56:25];
+    assign q_val_tot = q_val_sum[56:25];
     
     integer i;
     
@@ -482,8 +477,8 @@ module integrator(
         if (reset) begin // at reset, stop integrating and reset sums to zero
             state <= IDLE;
             counter <= 11'b0;
-            i_vals <= 0;
-            q_vals <= 0;
+            i_vals <= {5{32'b0}};
+            q_vals <= {5{32'b0}};
         end
 
         case (state)
@@ -491,11 +486,11 @@ module integrator(
                 iq_valid <= 0;
                 if (start) begin // at start change states
                     state <= DELAY;
-                    i_vals <= 0;
-                    q_vals <= 0;
+                    i_vals <= {5{32'b0}};
+                    q_vals <= {5{32'b0}};
                 end
             end
-            
+             
             DELAY: begin // account of latency from previous modules of 2
                 state <= INTEGRATE;
             end

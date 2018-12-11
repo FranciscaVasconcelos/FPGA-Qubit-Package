@@ -91,7 +91,8 @@ module demod_main(
     
     assign trigger2_out = {4'b0, iq_valid};
     
-    wire [79:0] analyze_fsm_output;
+    // output Megan's I-, Q- data
+    // make sure top modules are working
     assign data2_out_sdi_dataStreamFCx5_M_data_0 = 16'b0;
     assign data2_out_sdi_dataStreamFCx5_M_data_1 = q_val[15:0];
     assign data2_out_sdi_dataStreamFCx5_M_data_2 = q_val[31:16];
@@ -99,8 +100,12 @@ module demod_main(
     assign data2_out_sdi_dataStreamFCx5_M_data_4 = i_val[31:16];
     assign data2_out_sdi_dataStreamFCx5_M_valid = 1;
 
+    // set read data to zero; we'll never read config data from the FPGA
     assign MEM_sdi_mem_M_rdData = 32'b0;
-    
+
+    // output our processed data
+    // this is what we're interested in!
+    wire [79:0] analyze_fsm_output;
     assign data3_out_sdi_dataStreamFCx5_M_data_4 = analyze_fsm_output[79:64];
     assign data3_out_sdi_dataStreamFCx5_M_data_3 = analyze_fsm_output[63:48];
     assign data3_out_sdi_dataStreamFCx5_M_data_2 = analyze_fsm_output[47:32];
@@ -108,12 +113,13 @@ module demod_main(
     assign data3_out_sdi_dataStreamFCx5_M_data_0 = analyze_fsm_output[15:0];
     assign data3_out_sdi_dataStreamFCx5_M_valid = 1;
     
+
     wire [129:0] sin_theta;
     wire [129:0] cos_theta;
     
+    // output DDS signal to ensure DDS working
     assign data0_out_sdi_dataStreamFCx5_M_valid = 1;
     assign data1_out_sdi_dataStreamFCx5_M_valid = 1;
-    
     assign data0_out_sdi_dataStreamFCx5_M_data_0 = sin_theta[25:10];
     assign data0_out_sdi_dataStreamFCx5_M_data_1 = sin_theta[51:36];
     assign data0_out_sdi_dataStreamFCx5_M_data_2 = sin_theta[77:62];

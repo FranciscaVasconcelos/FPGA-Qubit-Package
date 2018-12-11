@@ -31,28 +31,89 @@ module top_main_tb(
         end
     end
     
-    wire reset = 0;
+    reg reset = 0;
     reg config_reset = 0;
     reg trigger = 0;
-    reg [4:0] [15:0] data_i_in = 0;
-    reg [4:0] [15:0] data_q_in = 0;
+    wire signed [4:0] [15:0] data_i_in;
+    wire signed [4:0] [15:0] data_q_in;
+    reg [4:0] [5:0] phase = {6'd4,6'd3,6'd2,6'd1,6'd0};
     
-    integer k;
+    wire signed [4:0] [25:0] sin_theta;
+    wire signed [4:0] [25:0] cos_theta;
+    wire [4:0] [63:0] sin_cos;
+    
+    genvar g;
+    generate
+        for (g = 0; g < 5; g = g + 1) begin
+            assign sin_theta[g] = sin_cos[g][57:32];
+            assign cos_theta[g] = sin_cos[g][25:0];
+        end
+    endgenerate
+    
+    
+    wire phase_valid = 1;
+    wire error0;
+    wire error1;
+    wire error2;
+    wire error3;
+    wire error4;
+    wire data_valid0;
+    wire data_valid1;
+    wire data_valid2;
+    wire data_valid3;
+    wire data_valid4;
+    
+    dds_compiler_0 dds1(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+        .s_axis_phase_tdata(phase[0]),
+        .m_axis_data_tvalid(data_valid0), .m_axis_data_tdata(sin_cos[0]),
+        .event_phase_in_invalid(error0));
+    dds_compiler_0 dds2(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+        .s_axis_phase_tdata(phase[1]),
+        .m_axis_data_tvalid(data_valid1), .m_axis_data_tdata(sin_cos[1]),
+        .event_phase_in_invalid(error1));
+    dds_compiler_0 dds3(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+        .s_axis_phase_tdata(phase[2]),
+        .m_axis_data_tvalid(data_valid2), .m_axis_data_tdata(sin_cos[2]),
+        .event_phase_in_invalid(error2));
+    dds_compiler_0 dds4(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+        .s_axis_phase_tdata(phase[3]),
+        .m_axis_data_tvalid(data_valid3), .m_axis_data_tdata(sin_cos[3]),
+        .event_phase_in_invalid(error3));
+    dds_compiler_0 dds5(.aclk(clk100), .s_axis_phase_tvalid(phase_valid),
+        .s_axis_phase_tdata(phase[4]),
+        .m_axis_data_tvalid(data_valid4), .m_axis_data_tdata(sin_cos[4]),
+        .event_phase_in_invalid(error4));
+    
+    
+    genvar k;
+    generate
+        for (k = 0; k < 5; k = k + 1) begin
+            assign data_i_in[k] = sin_cos[k][57:42];
+            assign data_q_in[k] = sin_cos[k][25:10];
+        end
+    endgenerate
+
+    integer j;
     wire iq_valid;
     
     initial begin
         #1;
+        reset = 1;
+        #10;
+        reset = 0;
         forever begin
-            for (k = 0; k < 5; k = k + 1) begin
-                data_i_in[k] = data_i_in[k] + k;
-                data_q_in[k] = data_q_in[k] + k;
-            end
             #10;
             if (iq_valid) begin
                 #20;
                 trigger = 1;
                 #10;
                 trigger = 0;
+            end
+            for (j = 0; j < 5; j = j + 1) begin
+                if (phase[j] < 45)
+                    phase[j] = phase[j] + 5;
+                else
+                    phase[j] = phase[j] + 5 - 50;
             end
         end
     end
@@ -93,7 +154,7 @@ module top_main_tb(
         .Y_BIN_MIN(0))
         uut(
         // inputs
-        .clk100(clk100), .reset(reset), .config_reset(config_reset),
+        .clk100(clk100), .reset(reset),
         // I input values
         .data0_in_0(data_i_in[0]),
         .data0_in_1(data_i_in[1]),
@@ -113,8 +174,8 @@ module top_main_tb(
         .i_val(i_val), .q_val(q_val),
         // configurated prameters to pass to lower modules
         .analyze_mode(analyze_mode),
-        .x_bin_width(x_bin_width), .y_bin_width(y_bin_width),
-        .x_bin_num(x_bin_num), .y_bin_num(y_bin_num),
-        .x_bin_min(x_bin_min), .y_bin_min(y_bin_min));
+        .i_bin_width(x_bin_width), .q_bin_width(y_bin_width),
+        .i_bin_num(x_bin_num), .q_bin_num(y_bin_num),
+        .i_bin_min(x_bin_min), .q_bin_min(y_bin_min));
 
 endmodule
