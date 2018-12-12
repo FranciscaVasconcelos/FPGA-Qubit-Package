@@ -428,6 +428,10 @@ module multiplier(
                     data_i_rot[i] <= data_i_hold[i]*cos_theta[i] + data_q_hold[i]*sin_theta[i];
                     data_q_rot[i] <= data_q_hold[i]*cos_theta[i] - data_i_hold[i]*sin_theta[i];
                 end
+                else begin
+                    data_i_rot[i] <= 0;
+                    data_q_rot[i] <= 0;
+                end
             end
         end
         
