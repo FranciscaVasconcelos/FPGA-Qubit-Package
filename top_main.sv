@@ -9,7 +9,7 @@ module top_main (
 	// config control
 	input [13:0] MEM_sdi_mem_S_address, // parameter location
     input MEM_sdi_mem_S_wrEn, // write on
-    input [32:0] MEM_sdi_mem_S_wrData, // parameter value
+    input [31:0] MEM_sdi_mem_S_wrData, // parameter value
     // i input
 	input [15:0] data0_in_0, data0_in_1, data0_in_2, data0_in_3, data0_in_4,
 	// q input

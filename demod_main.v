@@ -11,8 +11,8 @@ module demod_main(
     // PcPort
     input [13:0] MEM_sdi_mem_S_address,
     input MEM_sdi_mem_S_rdEn, MEM_sdi_mem_S_wrEn,
-    input [32:0] MEM_sdi_mem_S_wrData,
-    output [32:0] MEM_sdi_mem_M_rdData,
+    input [31:0] MEM_sdi_mem_S_wrData,
+    output [31:0] MEM_sdi_mem_M_rdData,
 
     // hvi_port interface
     input [9:0] HVI_sdi_mem_S_address,

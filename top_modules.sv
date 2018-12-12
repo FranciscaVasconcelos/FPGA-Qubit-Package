@@ -12,7 +12,7 @@ module config_params(
     // control inputs
     input [13:0] MEM_sdi_mem_S_address, // parameter location
     input MEM_sdi_mem_S_wrEn, // write enable
-    input [32:0] MEM_sdi_mem_S_wrData, // parameter value
+    input [31:0] MEM_sdi_mem_S_wrData, // parameter value
 
     // outputs
     output reg [4:0] demod_freq, // freq divided by 10 MHz; we assume will only sample at increments of 10 MHz
